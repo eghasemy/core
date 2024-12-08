@@ -38,6 +38,8 @@
 
 #include "config.h"
 
+static coord_data_t homing_pulloff = {0};
+
 // Merge (bitwise or) all limit switch inputs.
 ISR_CODE axes_signals_t ISR_FUNC(limit_signals_merge)(limit_signals_t signals)
 {
@@ -118,7 +120,7 @@ void limits_set_work_envelope (void)
     do {
         if(sys.homed.mask & bit(--idx)) {
 
-            float pulloff = settings.limits.flags.hard_enabled && bit_istrue(sys.homing.mask, bit(idx)) ? settings.homing.pulloff : 0.0f;
+            float pulloff = settings.limits.flags.hard_enabled && bit_istrue(sys.homing.mask, bit(idx)) ? homing_pulloff.values[idx] : 0.0f;
 
             if(settings.homing.flags.force_set_origin) {
                 if(bit_isfalse(settings.homing.dir_mask.value, bit(idx))) {
@@ -144,20 +146,19 @@ void limits_set_work_envelope (void)
 void limits_set_machine_positions (axes_signals_t cycle, bool add_pulloff)
 {
     uint_fast8_t idx = N_AXIS;
-    float pulloff = add_pulloff ? settings.homing.pulloff : -0.0f;
 
     if(settings.homing.flags.force_set_origin) {
         do {
-            if (cycle.mask & bit(--idx)) {
+            if(cycle.mask & bit(--idx)) {
                 sys.position[idx] = 0;
                 sys.home_position[idx] = 0.0f;
             }
         } while(idx);
     } else do {
-        if (cycle.mask & bit(--idx)) {
+        if(cycle.mask & bit(--idx)) {
             sys.home_position[idx] = bit_istrue(settings.homing.dir_mask.value, bit(idx))
-                                      ? settings.axis[idx].max_travel + pulloff
-                                      : - pulloff;
+                                      ? settings.axis[idx].max_travel + (add_pulloff ? homing_pulloff.values[idx] : -0.0f)
+                                      : -(add_pulloff ? homing_pulloff.values[idx] : -0.0f);
             sys.position[idx] = lroundf(sys.home_position[idx] * settings.axis[idx].steps_per_mm);
         }
     } while(idx);
@@ -165,9 +166,18 @@ void limits_set_machine_positions (axes_signals_t cycle, bool add_pulloff)
 
 #endif
 
+// Set, get homing pulloff
+coord_data_t *limits_homing_pulloff (coord_data_t *distance)
+{
+    if(distance)
+        memcpy(&homing_pulloff, distance, sizeof(coord_data_t));
+
+    return &homing_pulloff;
+}
+
 // Pulls off axes from asserted homing switches before homing starts.
 // For now only for auto squared axes.
-static bool limits_pull_off (axes_signals_t axis, float distance)
+static bool limits_pull_off (axes_signals_t axis, coord_data_t *distance, float scaling)
 {
     uint_fast8_t n_axis = 0, idx = N_AXIS;
     coord_data_t target = {0};
@@ -184,16 +194,15 @@ static bool limits_pull_off (axes_signals_t axis, float distance)
         idx--;
         if(bit_istrue(axis.mask, bit(idx))) {
             n_axis++;
-            if (bit_istrue(settings.homing.dir_mask.value, bit(idx)))
-                target.values[idx] += distance;
+            if(bit_istrue(settings.homing.dir_mask.value, bit(idx)))
+                target.values[idx] += distance->values[idx] * scaling;
             else
-                target.values[idx] -= distance;
+                target.values[idx] -= distance->values[idx] * scaling;
         }
     } while(idx);
 
     plan_data.feed_rate = settings.homing.seek_rate * sqrtf(n_axis); // Adjust so individual axes all move at pull-off rate.
     plan_data.condition.coolant = gc_state.modal.coolant;
-    memcpy(&plan_data.spindle, &gc_state.spindle, sizeof(spindle_t));
 
 #ifdef KINEMATICS_API
     coord_data_t k_target;
@@ -271,16 +280,16 @@ static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_square)
     axes_signals_t axislock, homing_state;
     home_signals_t signals_state;
     squaring_mode_t squaring_mode = SquaringMode_Both;
-    coord_data_t target;
+    coord_data_t distance, target;
     plan_line_data_t plan_data;
+    rt_exec_t rt_exec, rt_exec_states = EXEC_SAFETY_DOOR|EXEC_RESET|EXEC_CYCLE_COMPLETE;
+
+    // Initialize plan data struct for homing motion.
 
     plan_data_init(&plan_data);
     plan_data.condition.system_motion = On;
     plan_data.condition.no_feed_override = On;
     plan_data.line_number = DEFAULT_HOMING_CYCLE_LINE_NUMBER;
-
-    // Initialize plan data struct for homing motion.
-    memcpy(&plan_data.spindle, &gc_state.spindle, sizeof(spindle_t));
     plan_data.condition.coolant = gc_state.modal.coolant;
 
     uint_fast8_t idx = N_AXIS;
@@ -296,11 +305,13 @@ static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_square)
         // NOTE: settings.axis[].max_travel is stored as a negative value.
         if(bit_istrue(cycle.mask, bit(idx))) {
 #if N_AXIS > 3
-            if(bit_istrue(settings.steppers.is_rotational.mask, bit(idx)))
-                max_travel = max(max_travel, (-HOMING_AXIS_SEARCH_SCALAR) * (settings.axis[idx].max_travel < -0.0f ? settings.axis[idx].max_travel : -360.0f));
+            if(bit_istrue(settings.steppers.is_rotary.mask, bit(idx)))
+                distance.values[idx] = (settings.axis[idx].max_travel < -0.0f ? settings.axis[idx].max_travel : -360.0f) * (-HOMING_AXIS_SEARCH_SCALAR);
             else
 #endif
-            max_travel = max(max_travel, (-HOMING_AXIS_SEARCH_SCALAR) * settings.axis[idx].max_travel);
+            distance.values[idx] = settings.axis[idx].max_travel * (-HOMING_AXIS_SEARCH_SCALAR);
+
+            max_travel = max(max_travel, distance.values[idx]);
 
             if(bit_istrue(auto_square.mask, bit(idx)))
                 dual_motor_axis = idx;
@@ -319,6 +330,9 @@ static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_square)
         fail_distance = max(fail_distance, settings.homing.dual_axis.fail_distance_min);
         autosquare_fail_distance = truncf(fail_distance * settings.axis[dual_motor_axis].steps_per_mm);
     }
+
+    if(settings.status_report.when_homing)
+        rt_exec_states |= EXEC_STATUS_REPORT;
 
     // Set search mode with approach at seek rate to quickly engage the specified cycle.mask limit switches.
     do {
@@ -341,9 +355,9 @@ static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_square)
 #endif
                 // Set target direction based on cycle mask and homing cycle approach state.
                 if (bit_istrue(settings.homing.dir_mask.value, bit(idx)))
-                    target.values[idx] = mode == HomingMode_Pulloff ? max_travel : - max_travel;
+                    target.values[idx] = mode == HomingMode_Pulloff ? distance.values[idx] : - distance.values[idx];
                 else
-                    target.values[idx] = mode == HomingMode_Pulloff ? - max_travel : max_travel;
+                    target.values[idx] = mode == HomingMode_Pulloff ? - distance.values[idx] : distance.values[idx];
 
                 // Apply axislock to the step port pins active in this cycle.
                 axislock.mask |= step_pin[idx];
@@ -420,36 +434,40 @@ static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_square)
             st_prep_buffer(); // Check and prep segment buffer.
 
             // Exit routines: No time to run protocol_execute_realtime() in this loop.
-            if (sys.rt_exec_state & (EXEC_SAFETY_DOOR | EXEC_RESET | EXEC_CYCLE_COMPLETE)) {
+            if((rt_exec = (sys.rt_exec_state & rt_exec_states))) {
 
-                uint_fast16_t rt_exec = sys.rt_exec_state;
-
-                // Homing failure condition: Reset issued during cycle.
-                if (rt_exec & EXEC_RESET)
-                    system_set_exec_alarm(Alarm_HomingFailReset);
-
-                // Homing failure condition: Safety door was opened.
-                if (rt_exec & EXEC_SAFETY_DOOR)
-                    system_set_exec_alarm(Alarm_HomingFailDoor);
-
-                hal.delay_ms(2, NULL);
-
-                // Homing failure condition: Homing switch(es) still engaged after pull-off motion
-                if (mode == HomingMode_Pulloff && (homing_signals_select(hal.homing.get_state(), (axes_signals_t){0}, SquaringMode_Both).mask & cycle.mask))
-                    system_set_exec_alarm(Alarm_FailPulloff);
-
-                // Homing failure condition: Limit switch not found during approach.
-                if (mode != HomingMode_Pulloff && (rt_exec & EXEC_CYCLE_COMPLETE))
-                    system_set_exec_alarm(Alarm_HomingFailApproach);
-
-                if (sys.rt_exec_alarm) {
-                    mc_reset(); // Stop motors, if they are running.
-                    protocol_execute_realtime();
-                    return false;
+                if(rt_exec == EXEC_STATUS_REPORT) {
+                    system_clear_exec_state_flag(EXEC_STATUS_REPORT);
+                    report_realtime_status();
                 } else {
-                    // Pull-off motion complete. Disable CYCLE_STOP from executing.
-                    system_clear_exec_state_flag(EXEC_CYCLE_COMPLETE);
-                    break;
+
+                    // Homing failure condition: Reset issued during cycle.
+                    if (rt_exec & EXEC_RESET)
+                        system_set_exec_alarm(Alarm_HomingFailReset);
+
+                    // Homing failure condition: Safety door was opened.
+                    if (rt_exec & EXEC_SAFETY_DOOR)
+                        system_set_exec_alarm(Alarm_HomingFailDoor);
+
+                    hal.delay_ms(2, NULL);
+
+                    // Homing failure condition: Homing switch(es) still engaged after pull-off motion
+                    if (mode == HomingMode_Pulloff && (homing_signals_select(hal.homing.get_state(), (axes_signals_t){0}, SquaringMode_Both).mask & cycle.mask))
+                        system_set_exec_alarm(Alarm_FailPulloff);
+
+                    // Homing failure condition: Limit switch not found during approach.
+                    if (mode != HomingMode_Pulloff && (rt_exec & EXEC_CYCLE_COMPLETE))
+                        system_set_exec_alarm(Alarm_HomingFailApproach);
+
+                    if (sys.rt_exec_alarm) {
+                        mc_reset(); // Stop motors, if they are running.
+                        protocol_execute_realtime();
+                        return false;
+                    } else {
+                        // Pull-off motion complete. Disable CYCLE_STOP from executing.
+                        system_clear_exec_state_flag(EXEC_CYCLE_COMPLETE);
+                        break;
+                    }
                 }
             }
 
@@ -465,13 +483,14 @@ static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_square)
         homing_rate = hal.homing.get_feedrate(cycle, mode);
 
         // After first cycle, homing enters locating phase. Shorten search to pull-off distance.
-        if (mode == HomingMode_Locate) {
+        idx = N_AXIS;
+        do {
             // Only one initial pass for auto squared axis when both motors are active
             //if(mode == SquaringMode_Both && auto_square.mask)
             //    cycle.mask &= ~auto_square.mask;
-            max_travel = settings.homing.pulloff * HOMING_AXIS_LOCATE_SCALAR;
-        } else
-            max_travel = settings.homing.pulloff;
+            if(bit_istrue(cycle.mask, bit(--idx)))
+                distance.values[idx] = homing_pulloff.values[idx] * (mode == HomingMode_Locate ? HOMING_AXIS_LOCATE_SCALAR : 1.0f);
+        } while(idx);
 
         if(auto_square.mask) {
             autosquare_check = false;
@@ -484,7 +503,8 @@ static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_square)
     // Pull off B motor to compensate for switch inaccuracy when configured.
     if(auto_square.mask && settings.axis[dual_motor_axis].dual_axis_offset != 0.0f) {
         hal.stepper.disable_motors(auto_square, settings.axis[dual_motor_axis].dual_axis_offset < 0.0f ? SquaringMode_B : SquaringMode_A);
-        if(!limits_pull_off(auto_square, fabs(settings.axis[dual_motor_axis].dual_axis_offset)))
+        distance.values[dual_motor_axis] = fabs(settings.axis[dual_motor_axis].dual_axis_offset);
+        if(!limits_pull_off(auto_square, &distance, 1.0f))
             return false;
         hal.stepper.disable_motors((axes_signals_t){0}, SquaringMode_Both);
     }
@@ -535,7 +555,7 @@ status_code_t limits_go_home (axes_signals_t cycle)
         if(auto_squared.mask != auto_square.mask)
             return Status_IllegalHomingConfiguration; // Attempt at squaring more than one auto squared axis at the same time.
 
-        if((auto_squared.mask & homing_signals_select(hal.homing.get_state(), (axes_signals_t){0}, SquaringMode_Both).mask) && !limits_pull_off(auto_square, settings.homing.pulloff * HOMING_AXIS_LOCATE_SCALAR))
+        if((auto_squared.mask & homing_signals_select(hal.homing.get_state(), (axes_signals_t){0}, SquaringMode_Both).mask) && !limits_pull_off(auto_square, &homing_pulloff, HOMING_AXIS_LOCATE_SCALAR))
             return Status_LimitsEngaged; // Auto squaring with limit switch asserted is not allowed.
     }
 

@@ -30,7 +30,14 @@
 
 #include "gcode.h"
 
+#ifndef NGC_MAX_PARAM_LENGTH
+#define NGC_MAX_PARAM_LENGTH 20
+#endif
+
+#define NGC_MAX_PARAM_ID 65535
+
 typedef uint16_t ngc_param_id_t;
+typedef uint32_t ngc_string_id_t;
 
 typedef struct {
     ngc_param_id_t id;
@@ -79,6 +86,15 @@ typedef enum {
     NGCParam_u,
     NGCParam_v,
     NGCParam_w,
+    NGCParam_abs_x,
+    NGCParam_abs_y,
+    NGCParam_abs_z,
+    NGCParam_abs_a,
+    NGCParam_abs_b,
+    NGCParam_abs_c,
+    NGCParam_abs_u,
+    NGCParam_abs_v,
+    NGCParam_abs_w,
     NGCParam_current_tool,
     NGCParam_current_pocket,
     NGCParam_selected_tool,
@@ -96,6 +112,13 @@ bool ngc_named_param_get (char *name, float *value);
 float ngc_named_param_get_by_id (ncg_name_param_id_t id);
 bool ngc_named_param_set (char *name, float value);
 bool ngc_named_param_exists (char *name);
+
+bool ngc_string_param_set (ngc_param_id_t id, char *value);
+ngc_string_id_t ngc_string_param_set_name (char *name);
+char *ngc_string_param_get (ngc_string_id_t id);
+bool ngc_string_param_exists (ngc_string_id_t id);
+void ngc_string_param_delete (ngc_string_id_t id);
+
 bool ngc_call_push (void *context);
 bool ngc_call_pop (void);
 uint_fast8_t ngc_call_level (void);

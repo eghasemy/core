@@ -486,11 +486,11 @@ non-volatile storage until the controller is in IDLE state.
 
 /*! \def TOOLSETTER_RADIUS
 \brief
-The grbl.on_probe_fixture event handler is called by the default tool change algorithm when probing at G59.3.
+The grbl.on_probe_toolsetter event handler is called by the default tool change algorithm when probing at G59.3.
 In addition it will be called on a "normal" probe sequence if the XY position is
 within the radius of the G59.3 position defined below.
 Change if the default value of 5mm is not suitable or set it to 0.0f to disable.
-<br>__NOTE:__ A grbl.on_probe_fixture event handler is not installed by the core, it has to be provided
+<br>__NOTE:__ A grbl.on_probe_toolsetter event handler is not installed by the core, it has to be provided
 by a driver or a plugin.
 */
 #if !defined TOOLSETTER_RADIUS || defined __DOXYGEN__
@@ -694,6 +694,16 @@ The following codes are defined:
 */
 #if !defined DEFAULT_REPORT_RUN_SUBSTATE || defined __DOXYGEN__
 #define DEFAULT_REPORT_RUN_SUBSTATE Off // Default off. Set to \ref On or 1 to enable.
+#endif
+
+/*! \def DEFAULT_REPORT_WHEN_HOMING
+\brief
+Enabling this setting enables status reporting while homing.
+<br>__NOTE:__ Enabling this option may break senders.
+\internal Bit 12 in settings.status_report.
+*/
+#if !defined DEFAULT_REPORT_WHEN_HOMING || defined __DOXYGEN__
+#define DEFAULT_REPORT_WHEN_HOMING Off // Default off. Set to \ref On or 1 to enable.
 #endif
 
 ///@}
@@ -1010,6 +1020,9 @@ Useful for some pre-built electronic boards.
 #if !defined DEFAULT_SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED || defined __DOXYGEN__
 #define DEFAULT_SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED Off
 #endif
+#if !defined DEFAULT_PWM_SPINDLE_DISABLE_LASER_MODE || defined __DOXYGEN__
+#define DEFAULT_PWM_SPINDLE_DISABLE_LASER_MODE Off
+#endif
 ///@}
 
 /*! @name $16 - Setting_SpindleInvertMask
@@ -1105,6 +1118,14 @@ Default value is 0, meaning spindle sync is disabled
 #endif
 ///@}
 
+/*! @name $395 - Setting_SpindleType
+*/
+///@{
+#if !defined DEFAULT_SPINDLE || defined __DOXYGEN__
+#define DEFAULT_SPINDLE SPINDLE_PWM0 // Spindle number from spindle_control.h
+#endif
+///@}
+
 // Closed loop spindle settings (Group_Spindle_ClosedLoop)
 
 // $9 - Setting_SpindlePWMOptions
@@ -1190,6 +1211,81 @@ Defines the parameters for the fourth entry in the spindle RPM linearization tab
 ///@}
 
 #endif // ENABLE_SPINDLE_LINEARIZATION
+
+// Settings for second PWM spindle
+
+/*! @name $716 - Setting_SpindleInvertMask1
+Inverts the selected spindle output signals from active high to active low. Useful for some pre-built electronic boards.
+*/
+///@{
+#if !defined DEFAULT_INVERT_SPINDLE1_ENABLE_PIN || defined __DOXYGEN__
+#define DEFAULT_INVERT_SPINDLE1_ENABLE_PIN Off
+#endif
+#if !defined DEFAULT_INVERT_SPINDLE1_CCW_PIN || defined __DOXYGEN__
+#define DEFAULT_INVERT_SPINDLE1_CCW_PIN Off // NOTE: not supported by all drivers.
+#endif
+#if !defined DEFAULT_INVERT_SPINDLE1_PWM_PIN || defined __DOXYGEN__
+#define DEFAULT_INVERT_SPINDLE1_PWM_PIN Off // NOTE: not supported by all drivers.
+#endif
+///@}
+
+/*! @name $730 - Setting_RpmMax1
+*/
+///@{
+#if !defined DEFAULT_SPINDLE1_RPM_MAX || defined __DOXYGEN__
+#define DEFAULT_SPINDLE1_RPM_MAX 1000.0f // rpm
+#endif
+///@}
+
+/*! @name $731 - Setting_RpmMin1
+*/
+///@{
+#if !defined DEFAULT_SPINDLE1_RPM_MIN || defined __DOXYGEN__
+#define DEFAULT_SPINDLE1_RPM_MIN 0.0f // rpm
+#endif
+///@}
+
+/*! @name $733 - Setting_PWMFreq1
+*/
+///@{
+#if !defined DEFAULT_SPINDLE1_PWM_FREQ || defined __DOXYGEN__
+#define DEFAULT_SPINDLE1_PWM_FREQ 5000 // Hz
+#endif
+///@}
+
+/*! @name $734 - Setting_PWMOffValue1
+*/
+///@{
+#if !defined DEFAULT_SPINDLE1_PWM_OFF_VALUE || defined __DOXYGEN__
+#define DEFAULT_SPINDLE1_PWM_OFF_VALUE 0.0f // Percent
+#endif
+///@}
+
+/*! @name $735 - Setting_PWMMinValue1
+Used by variable spindle output only. This forces the PWM output to a minimum duty cycle when enabled.
+The PWM pin will still read 0V when the spindle is disabled. Most users will not need this option, but
+it may be useful in certain scenarios. This minimum PWM settings coincides with the spindle rpm minimum
+setting, like rpm max to max PWM. This is handy if you need a larger voltage difference between 0V disabled
+and the voltage set by the minimum PWM for minimum rpm. This difference is 0.02V per PWM value. So, when
+minimum PWM is at 1, only 0.02 volts separate enabled and disabled. At PWM 5, this would be 0.1V. Keep
+in mind that you will begin to lose PWM resolution with increased minimum PWM values, since you have less
+and less range over the total 255 PWM levels to signal different spindle speeds.
+<br>__!! NOTE:__ Compute duty cycle at the minimum PWM by this equation: (% duty cycle)=(SPINDLE1_PWM_MIN_VALUE/255)*100
+*/
+///@{
+#if !defined DEFAULT_SPINDLE1_PWM_MIN_VALUE || defined __DOXYGEN__
+#define DEFAULT_SPINDLE1_PWM_MIN_VALUE 0.0f // Must be greater than zero. Integer (+-255).
+#endif
+///@}
+
+/*! @name $736 - Setting_PWMMaxValue
+*/
+///@{
+#if !defined DEFAULT_SPINDLE1_PWM_MAX_VALUE || defined __DOXYGEN__
+#define DEFAULT_SPINDLE1_PWM_MAX_VALUE 100.0f // Percent
+#endif
+///@}
+
 
 // Tool change settings (Group_Toolchange)
 
@@ -1494,6 +1590,9 @@ are used the logic of the input signals should be be inverted with the \ref axis
 #if !defined DEFAULT_PROBE_SIGNAL_INVERT || defined __DOXYGEN__
 #define DEFAULT_PROBE_SIGNAL_INVERT Off
 #endif
+#if !defined DEFAULT_TOOLSETTER_SIGNAL_INVERT || defined __DOXYGEN__
+#define DEFAULT_TOOLSETTER_SIGNAL_INVERT Off
+#endif
 ///@}
 
 /*! @name $19 - Setting_ProbePullUpDisable
@@ -1501,6 +1600,9 @@ are used the logic of the input signals should be be inverted with the \ref axis
 ///@{
 #if !defined DEFAULT_PROBE_SIGNAL_DISABLE_PULLUP || defined __DOXYGEN__
 #define DEFAULT_PROBE_SIGNAL_DISABLE_PULLUP Off
+#endif
+#if !defined DEFAULT_TOOLSETTER_SIGNAL_DISABLE_PULLUP || defined __DOXYGEN__
+#define DEFAULT_TOOLSETTER_SIGNAL_DISABLE_PULLUP Off
 #endif
 ///@}
 
@@ -1766,7 +1868,7 @@ For the controller the distance is unitless and and can be in degrees, radians, 
 ///@}
 
 /*! @name $481 - Setting_AutoReportInterval
-// Auto status report interval, allowed range is 100 - 1000. Set to 0 to disable.
+Auto status report interval, allowed range is 100 - 1000. Set to 0 to disable.
 */
 ///@{
 #if !defined DEFAULT_AUTOREPORT_INTERVAL || defined __DOXYGEN__
@@ -1780,6 +1882,46 @@ Timezone offset from UTC in hours, allowed range is -12.0 - 12.0.
 ///@{
 #if !defined DEFAULT_TIMEZONE_OFFSET || defined __DOXYGEN__
 #define DEFAULT_TIMEZONE_OFFSET 0.0f
+#endif
+///@}
+
+/*! @name $484 - Setting_UnlockAfterEStop
+Specifices whether unlock ($X) is needed to clear an E-Stop alarm.
+NOTE: The logic is inverted in the stored setting.
+*/
+///@{
+#if !defined DEFAULT_NO_UNLOCK_AFTER_ESTOP || defined __DOXYGEN__
+#define DEFAULT_NO_UNLOCK_AFTER_ESTOP Off
+#endif
+///@}
+
+/*! @name $536 - Setting_RGB_StripLengt0
+Number of LEDs in NeoPixel/WS2812 strip 1.
+*/
+///@{
+#if !defined DEFAULT_RGB_STRIP0_LENGTH || defined __DOXYGEN__
+#define DEFAULT_RGB_STRIP0_LENGTH 0
+#endif
+///@}
+
+/*! @name $537 - Setting_RGB_StripLengt1
+Number of LEDs in NeoPixel/WS2812 strip 2.
+*/
+///@{
+#if !defined DEFAULT_RGB_STRIP1_LENGTH || defined __DOXYGEN__
+#define DEFAULT_RGB_STRIP1_LENGTH 0
+#endif
+///@}
+
+/*! @name $538 - Setting_RotaryWrap
+Enable fast return to G28 position for rotary axes by \ref axismask.
+Use:
+G91G28<axisletter>0
+G90
+*/
+///@{
+#if !defined DEFAULT_AXIS_ROTARY_WRAP_MASK || defined __DOXYGEN__
+#define DEFAULT_AXIS_ROTARY_WRAP_MASK 0
 #endif
 ///@}
 

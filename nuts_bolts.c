@@ -306,7 +306,7 @@ bool read_float (char *line, uint_fast8_t *char_counter, float *float_ptr)
 // Returns true if float value is a whole number (integer)
 bool isintf (float value)
 {
-    return value != NAN && fabsf(value - truncf(value)) < 0.001f;
+    return !isnan(value) && fabsf(value - truncf(value)) < 0.001f;
 }
 
 // Non-blocking delay function used for general operation and suspend features.
@@ -319,7 +319,7 @@ bool delay_sec (float seconds, delaymode_t mode)
     while(--i && ok) {
         if(mode == DelayMode_Dwell)
             ok = protocol_execute_realtime();
-        else // DelayMode_SysSuspende, xecute rt_system() only to avoid nesting suspend loops.
+        else // DelayMode_SysSuspend, execute rt_system() only to avoid nesting suspend loops.
             ok = protocol_exec_rt_system() && !state_door_reopened(); // Bail, if safety door reopens.
         if(ok)
             hal.delay_ms(DWELL_TIME_STEP, NULL); // Delay DWELL_TIME_STEP increment

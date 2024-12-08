@@ -73,6 +73,11 @@
     bluetooth_init();
 #endif
 
+#if ESP_AT_ENABLE
+    extern void esp_at_init (void);
+    esp_at_init();
+#endif
+
 #if KEYPAD_ENABLE
     extern bool keypad_init (void);
     keypad_init();
@@ -118,6 +123,21 @@
     embroidery_init();
 #endif
 
+#if RGB_LED_ENABLE
+    extern void rgb_led_init (void);
+    rgb_led_init();
+#endif
+
+#if FEED_OVERRIDE_ENABLE
+    extern void feed_override_init (void);
+    feed_override_init();
+#endif
+
+#if HOMING_PULLOFF_ENABLE
+    extern void homing_pulloff_init (void);
+    homing_pulloff_init();
+#endif
+
     extern void my_plugin_init (void);
     my_plugin_init();
 	
@@ -127,6 +147,10 @@
 #if N_SPINDLE > 1
     extern void spindle_select_init(void);
     spindle_select_init();
+  #if SPINDLE_OFFSET == 1
+    extern void spindle_offset_init (void);
+    spindle_offset_init();
+  #endif
 #endif
 
 // Third party plugin definitions.
@@ -167,6 +191,11 @@
 #if PANEL_ENABLE
     extern void panel_init (void);
     panel_init();
+#endif
+
+#if EVENTOUT_ENABLE
+    extern void event_out_init (void);
+    event_out_init();
 #endif
 
 // End third party plugin definitions.

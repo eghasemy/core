@@ -469,13 +469,13 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
 
     if(!block->condition.inverse_time &&
         !block->condition.rapid_motion &&
-         (motion.mask & settings.steppers.is_rotational.mask) &&
-          (motion.mask & ~settings.steppers.is_rotational.mask)) {
+         (motion.mask & settings.steppers.is_rotary.mask) &&
+          (motion.mask & ~settings.steppers.is_rotary.mask)) {
 
         float linear_magnitude = 0.0f;
 
         idx = 0;
-        motion.mask &= ~settings.steppers.is_rotational.mask;
+        motion.mask &= ~settings.steppers.is_rotary.mask;
 
         while(motion.mask) {
             if(motion.mask & 0x01)
@@ -669,7 +669,15 @@ void plan_feed_override (override_t feed_override, override_t rapid_override)
     if(sys.override.control.feed_rate_disable)
         return;
 
-    feed_override = constrain(feed_override, MIN_FEED_RATE_OVERRIDE, MAX_FEED_RATE_OVERRIDE);
+    if(feed_override == 0)
+        feed_override = sys.override.feed_rate;
+    else
+        feed_override = constrain(feed_override, MIN_FEED_RATE_OVERRIDE, MAX_FEED_RATE_OVERRIDE);
+
+    if(rapid_override == 0)
+        rapid_override = sys.override.rapid_rate;
+    else
+        rapid_override = constrain(rapid_override, 5, 100);
 
     if((feedrate_changed = feed_override != sys.override.feed_rate) ||
          (rapidrate_changed = rapid_override != sys.override.rapid_rate)) {
@@ -691,7 +699,7 @@ void plan_data_init (plan_line_data_t *plan_data)
 {
     memset(plan_data, 0, sizeof(plan_line_data_t));
     plan_data->offset_id = gc_state.offset_id;
-    plan_data->spindle.hal = gc_state.spindle.hal ? gc_state.spindle.hal : spindle_get(0);
+    plan_data->spindle.hal = gc_spindle_get(-1)->hal;
     plan_data->condition.target_validated = plan_data->condition.target_valid = sys.soft_limits.mask == 0;
 #ifdef KINEMATICS_API
     plan_data->rate_multiplier = 1.0f;

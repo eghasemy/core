@@ -41,6 +41,15 @@ typedef union {
     };
 } rgb_color_t;
 
+typedef union {
+    uint8_t mask;
+    struct {
+        uint8_t is_blocking :1,
+                is_strip    :1,
+                unassigned  :6;
+    };
+} rgb_properties_t;
+
 /*! \brief Pointer to function for setting RGB (LED) output.
 \param color a \a rgb_color_t union.
 */
@@ -68,6 +77,7 @@ typedef struct {
     rgb_write_ptr write;                    //!< Optional handler for outputting data to Neopixel strip.
     rgb_set_intensity_ptr set_intensity;    //!< Optional handler for setting intensity, range 0 - 255.
     rgb_color_t cap;                        //!< Driver capability, color value: 0 - not available, 1 - on off, > 1 - intensity range 0 - n.
+    rgb_properties_t flags;                 //!< Driver property flags.
     uint16_t num_devices;                   //!< Number of devices (LEDs) available.
 } rgb_ptr_t;
 
@@ -121,11 +131,11 @@ static inline void  rgb_3bpp_pack (uint8_t *led, rgb_color_t color, rgb_color_ma
 
     do {
         R <<= 3;
-        R |= color.R & bitmask ? 0b110 : 0b100;
+        R |= color.R & bitmask ? 0b011 : 0b010;
         G <<= 3;
-        G |= color.G & bitmask ? 0b110 : 0b100;
+        G |= color.G & bitmask ? 0b011 : 0b010;
         B <<= 3;
-        B |= color.B & bitmask ? 0b110 : 0b100;
+        B |= color.B & bitmask ? 0b011 : 0b010;
     } while(bitmask >>= 1);
 
     if(mask.G) {
@@ -169,13 +179,13 @@ static inline rgb_color_t rgb_3bpp_unpack (uint8_t *led, uint8_t intensity)
         B |= *led;
 
         do {
-            if((R & 0b110) == 0b110)
+            if((R & 0b011) == 0b011)
                color.R |= bitmask;
             R >>= 3;
-            if((G & 0b110) == 0b110)
+            if((G & 0b011) == 0b011)
                color.G |= bitmask;
             G >>= 3;
-            if((B & 0b110) == 0b110)
+            if((B & 0b011) == 0b011)
                color.B |= bitmask;
             B >>= 3;
         } while(bitmask <<= 1);

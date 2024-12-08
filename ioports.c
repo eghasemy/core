@@ -749,7 +749,7 @@ void ioport_setting_changed (setting_id_t id)
     if(on_setting_changed)
         on_setting_changed(id);
 
-    else switch(id) {
+    else if(digital.in.ports && digital.in.ports->n_ports) switch(id) {
 
         case Setting_InvertProbePin:
         case Setting_ProbePullUpDisable:
@@ -765,6 +765,18 @@ void ioport_setting_changed (setting_id_t id)
                             in_config.debounce  = Off;
                             in_config.inverted  = settings.probe.invert_probe_pin;
                             in_config.pull_mode = settings.probe.disable_probe_pullup ? PullMode_None : PullMode_Up;
+
+                            if(in_config.inverted)
+                                settings.ioport.invert_in.mask |= (1 << xbar->id);
+                            else
+                                settings.ioport.invert_in.mask &= ~(1 << xbar->id);
+
+                            xbar->config(xbar, &in_config, false);
+                        } else if(xbar->config && xbar->function == Input_Toolsetter) {
+
+                            in_config.debounce  = Off;
+                            in_config.inverted  = settings.probe.invert_toolsetter_input;
+                            in_config.pull_mode = settings.probe.disable_toolsetter_pullup ? PullMode_None : PullMode_Up;
 
                             if(in_config.inverted)
                                 settings.ioport.invert_in.mask |= (1 << xbar->id);

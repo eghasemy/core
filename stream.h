@@ -3,20 +3,20 @@
 
   Part of grblHAL
 
-  Copyright (c) 2019-2023 Terje Io
+  Copyright (c) 2019-2024 Terje Io
 
-  Grbl is free software: you can redistribute it and/or modify
+  grblHAL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Grbl is distributed in the hope that it will be useful,
+  grblHAL is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
+  along with grblHAL. If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*! \file
@@ -90,6 +90,15 @@ typedef enum {
     StreamType_Redirected,
     StreamType_Null
 } stream_type_t;
+
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t dtr    :1,
+                rts    :1,
+                unused :6;
+    };
+} serial_linestate_t;
 
 /*! \brief Pointer to function for getting stream connected status.
 \returns \a true connected, \a false otherwise.
@@ -201,26 +210,31 @@ for handing feed-holds, overrides, soft resets etc.
 */
 typedef bool (*disable_rx_stream_ptr)(bool disable);
 
+/*! \brief Pointer to function for handling line state changed events.
+
+\param \a serial_linestate_t enum.
+*/
+typedef void (*on_linestate_changed_ptr)(serial_linestate_t state);
+
 typedef union {
     uint8_t value;
     struct {
-        uint8_t connected     :1, //!< deprecated
-                claimable     :1,
+        uint8_t claimable     :1,
                 claimed       :1,
                 can_set_baud  :1,
                 rx_only       :1,
                 modbus_ready  :1,
                 rts_handshake :1,
-                unused        :1;
+                unused        :2;
     };
 } io_stream_flags_t;
 
 typedef union {
     uint8_t value;
     struct {
-        uint8_t connected       :1,
-                webui_connected :1,
+        uint8_t webui_connected :1,
                 is_usb          :1,
+                linestate_event :1, //!< Set when driver supports on_linestate_changed event.
                 unused          :5;
     };
 } io_stream_state_t;
@@ -247,6 +261,7 @@ typedef struct {
     get_stream_buffer_count_ptr get_tx_buffer_count;        //!< Optional handler for getting number of characters in the output buffer(s). Count shall include any unsent characters in any transmit FIFO and/or transmit register. Required for Modbus support.
     flush_stream_buffer_ptr reset_write_buffer;             //!< Optional handler for flushing the output buffer. Any transmit FIFO shall be flushed as well. Required for Modbus support.
     set_baud_rate_ptr set_baud_rate;                        //!< Optional handler for setting the stream baud rate. Required for Modbus support, recommended for Bluetooth support.
+    on_linestate_changed_ptr on_linestate_changed;          //!< Optional handler to be called when line state changes. Set by client.
     vfs_file_t *file;                                       //!< File handle, non-null if streaming from a file.
 } io_stream_t;
 
@@ -357,11 +372,21 @@ io_stream_t const *stream_open_instance (uint8_t instance, uint32_t baud_rate, s
 
 bool stream_set_description (const io_stream_t *stream, const char *description);
 
+void debug_printf(const char *fmt, ...);
+
+#if defined(DEBUG) || defined(DEBUGOUT)
+#define DEBUG_PRINT 1
 #ifdef DEBUGOUT
 void debug_write (const char *s);
 void debug_writeln (const char *s);
 bool debug_stream_init (void);
 #endif
+#else
+#define DEBUG_PRINT 0
+#endif
+
+#define debug_print(fmt, ...) \
+   do { if(DEBUG_PRINT) debug_printf(fmt, __VA_ARGS__); } while(0)
 
 #ifdef __cplusplus
 }

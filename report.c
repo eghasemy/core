@@ -21,7 +21,7 @@
 */
 
 /*
-  This file functions as the primary feedback interface for Grbl. Any outgoing data, such
+  This file functions as the primary feedback interface for grblHAL. Any outgoing data, such
   as the protocol status messages, feedback messages, and status reports, are stored here.
   For the most part, these functions primarily are called from protocol.c methods. If a
   different style feedback is desired (i.e. JSON), then a user can change these following
@@ -38,6 +38,7 @@
 #include "nvs_buffer.h"
 #include "machine_limits.h"
 #include "state_machine.h"
+#include "canbus.h"
 #include "regex.h"
 
 #if ENABLE_SPINDLE_LINEARIZATION
@@ -117,7 +118,7 @@ static char *get_axis_values_inches (float *axis_values)
         if(idx == X_AXIS && gc_state.modal.diameter_mode)
             strcat(buf, ftoa(axis_values[idx] * INCH_PER_MM * 2.0f, N_DECIMAL_COORDVALUE_INCH));
 #if N_AXIS > 3
-        else if(idx > Z_AXIS && bit_istrue(settings.steppers.is_rotational.mask, bit(idx)))
+        else if(idx > Z_AXIS && bit_istrue(settings.steppers.is_rotary.mask, bit(idx)))
             strcat(buf, ftoa(axis_values[idx], N_DECIMAL_COORDVALUE_MM));
 #endif
         else
@@ -228,6 +229,9 @@ static status_code_t report_status_message (status_code_t status_code)
 {
     switch(status_code) {
 
+        case Status_Handled:
+            status_code = Status_OK;
+            // no break
         case Status_OK: // STATUS_OK
             hal.stream.write("ok" ASCII_EOL);
             break;
@@ -264,6 +268,14 @@ void report_message (const char *msg, message_type_t type)
 
             case Message_Warning:
                 hal.stream.write("Warning: ");
+                break;
+
+            case Message_Error:
+                hal.stream.write("Error: ");
+                break;
+
+            case Message_Debug:
+                hal.stream.write("Debug: ");
                 break;
 
             default:
@@ -326,6 +338,16 @@ static void report_init_message (void)
 static void report_help_message (void)
 {
     hal.stream.write("[HLP:$$ $# $G $I $N $x=val $Nx=line $J=line $SLP $C $X $H $B ~ ! ? ctrl-x]" ASCII_EOL);
+}
+
+// Prints plugin info.
+void report_plugin (const char *name, const char *version)
+{
+    hal.stream.write("[PLUGIN:");
+    hal.stream.write(name);
+    hal.stream.write(" v");
+    hal.stream.write(version);
+    hal.stream.write("]" ASCII_EOL);
 }
 
 static bool report_group_settings (const setting_group_detail_t *groups, const uint_fast8_t n_groups, char *args)
@@ -404,7 +426,7 @@ status_code_t report_help (char *args)
 }
 
 
-// Grbl settings print out.
+// grblHAL settings print out.
 
 static int cmp_settings (const void *a, const void *b)
 {
@@ -432,7 +454,7 @@ status_code_t report_grbl_setting (setting_id_t id, void *data)
 
     const setting_detail_t *setting = setting_get_details(id, NULL);
 
-    if(setting)
+    if(setting /*?? hide? && !setting->flags.hidden*/)
         grbl.report.setting(setting, id - setting->id, data);
     else
         status = Status_SettingDisabled;
@@ -473,7 +495,7 @@ void report_grbl_settings (bool all, void *data)
         // Report core settings
         for(idx = 0; idx < details->n_settings; idx++) {
             setting = &details->settings[idx];
-            if((all || setting->type == Setting_IsLegacy || setting->type == Setting_IsLegacyFn) &&
+            if(!setting->flags.hidden && (all || setting->type == Setting_IsLegacy || setting->type == Setting_IsLegacyFn) &&
                   (setting->is_available == NULL ||setting->is_available(setting))) {
                 *psetting++ = (setting_detail_t *)setting;
                 n_settings++;
@@ -484,7 +506,7 @@ void report_grbl_settings (bool all, void *data)
         if(all && (details = details->next)) do {
             for(idx = 0; idx < details->n_settings; idx++) {
                 setting = &details->settings[idx];
-                if(setting->is_available == NULL ||setting->is_available(setting)) {
+                if(!setting->flags.hidden && (setting->is_available == NULL || setting->is_available(setting))) {
                     *psetting++ = (setting_detail_t *)setting;
                     n_settings++;
                 }
@@ -507,7 +529,7 @@ void report_grbl_settings (bool all, void *data)
 
 // Prints current probe parameters. Upon a probe command, these parameters are updated upon a
 // successful probe or upon a failed probe with the G38.3 without errors command (if supported).
-// These values are retained until Grbl is power-cycled, whereby they will be re-zeroed.
+// These values are retained until grblHAL is power-cycled, whereby they will be re-zeroed.
 void report_probe_parameters (void)
 {
     // Report in terms of machine position.
@@ -580,7 +602,7 @@ status_code_t report_named_ngc_parameter (char *arg)
 
 #endif
 
-// Prints Grbl NGC parameters (coordinate offsets, probing, tool table)
+// Prints grblHAL NGC parameters (coordinate offsets, probing, tool table)
 void report_ngc_parameters (void)
 {
     uint_fast8_t idx;
@@ -655,6 +677,9 @@ void report_ngc_parameters (void)
         hal.stream.write(get_axis_value(sys.tlo_reference[plane.axis_linear] / settings.axis[plane.axis_linear].steps_per_mm));
         hal.stream.write("]" ASCII_EOL);
     }
+
+    if(grbl.on_report_ngc_parameters)
+        grbl.on_report_ngc_parameters();
 }
 
 static inline bool is_g92_active (void)
@@ -703,8 +728,8 @@ void report_gcode_modes (void)
     hal.stream.write(" G");
     hal.stream.write(uitoa((uint32_t)(93 + (gc_state.modal.feed_mode == FeedMode_UnitsPerRev ? 2 : gc_state.modal.feed_mode ^ 1))));
 
-    if(settings.mode == Mode_Lathe && gc_spindle_get()->cap.variable)
-        hal.stream.write(gc_state.modal.spindle.rpm_mode == SpindleSpeedMode_RPM ? " G97" : " G96");
+    if(settings.mode == Mode_Lathe && gc_spindle_get(0)->hal->cap.variable)
+        hal.stream.write(gc_spindle_get(0)->rpm_mode == SpindleSpeedMode_RPM ? " G97" : " G96");
 
 #if COMPATIBILITY_LEVEL < 10
 
@@ -756,7 +781,7 @@ void report_gcode_modes (void)
         }
     }
 
-    hal.stream.write(gc_state.modal.spindle.state.on ? (gc_state.modal.spindle.state.ccw ? " M4" : " M3") : " M5");
+    hal.stream.write(gc_spindle_get(0)->state.on ? (gc_spindle_get(0)->state.ccw ? " M4" : " M3") : " M5");
 
     if(gc_state.tool_change)
         hal.stream.write(" M6");
@@ -788,8 +813,8 @@ void report_gcode_modes (void)
 
     hal.stream.write(appendbuf(2, " F", get_rate_value(gc_state.feed_rate)));
 
-    if(gc_spindle_get()->cap.variable)
-        hal.stream.write(appendbuf(2, " S", ftoa(gc_state.spindle.rpm, N_DECIMAL_RPMVALUE)));
+    if(gc_spindle_get(0)->hal->cap.variable)
+        hal.stream.write(appendbuf(2, " S", ftoa(gc_spindle_get(0)->rpm, N_DECIMAL_RPMVALUE)));
 
     hal.stream.write("]" ASCII_EOL);
 }
@@ -985,6 +1010,9 @@ void report_build_info (char *line, bool extended)
         if(hal.rtc.get_datetime)
             strcat(buf, "RTC,");
 
+        if(canbus_enabled())
+            strcat(buf, "CAN,");
+
     #ifdef PID_LOG
         strcat(buf, "PID,");
     #endif
@@ -1003,6 +1031,12 @@ void report_build_info (char *line, bool extended)
         control_signals_tostring(buf, hal.signals_cap);
         hal.stream.write(buf);
         hal.stream.write("]" ASCII_EOL);
+
+#if N_SYS_SPINDLE > 1
+        hal.stream.write("[SPINDLES:");
+        hal.stream.write(uitoa(N_SYS_SPINDLE));
+        hal.stream.write("]" ASCII_EOL);
+#endif
 
         if(!(nvs->type == NVS_None || nvs->type == NVS_Emulated)) {
             hal.stream.write("[NVS STORAGE:");
@@ -1077,9 +1111,8 @@ void report_build_info (char *line, bool extended)
     }
 }
 
-
-// Prints the character string line Grbl has received from the user, which has been pre-parsed,
-// and has been sent into protocol_execute_line() routine to be executed by Grbl.
+// Prints the character string line grblHAL has received from the user, which has been pre-parsed,
+// and has been sent into protocol_execute_line() routine to be executed by grblHAL.
 void report_echo_line_received (char *line)
 {
     hal.stream.write("[echo: ");
@@ -1087,6 +1120,19 @@ void report_echo_line_received (char *line)
     hal.stream.write("]" ASCII_EOL);
 }
 
+#if N_SYS_SPINDLE == 1 && N_SPINDLE > 1
+
+static bool report_spindle_num (spindle_info_t *spindle, void *data)
+{
+    bool ok;
+
+    if((ok = spindle->id == *((spindle_id_t *)data)))
+        hal.stream.write_all(appendbuf(2, "|S:", uitoa((uint32_t)spindle->num)));
+
+    return ok;
+}
+
+#endif
 
  // Prints real-time data. This function grabs a real-time snapshot of the stepper subprogram
  // and the actual location of the CNC machine. Users may change the following function to their
@@ -1235,7 +1281,7 @@ void report_realtime_status (void)
 
 #elif N_SPINDLE > 1
     if(report.spindle_id)
-        hal.stream.write_all(appendbuf(2, "|S:", uitoa((uint32_t)spindle_0->id)));
+        spindle_enumerate_spindles(report_spindle_num, &spindle_0->id);
 #endif
 
     if(settings.status_report.pin_state) {
@@ -1418,12 +1464,13 @@ void report_realtime_status (void)
         static gc_modal_t last_state;
         static bool g92_active;
 
-        bool is_changed = feed_rate != gc_state.feed_rate || spindle_rpm != gc_state.spindle.rpm || tool_id != gc_state.tool->tool_id;
+        spindle_t *spindle = gc_spindle_get(0);
+        bool is_changed = feed_rate != gc_state.feed_rate || spindle_rpm != spindle->rpm || tool_id != gc_state.tool->tool_id;
 
         if(is_changed) {
             feed_rate = gc_state.feed_rate;
             tool_id = gc_state.tool->tool_id;
-            spindle_rpm = gc_state.spindle.rpm;
+            spindle_rpm = spindle->rpm;
         } else if ((is_changed = g92_active != is_g92_active()))
             g92_active = !g92_active;
         else if(memcmp(&last_state, &gc_state.modal, sizeof(gc_modal_t))) {
@@ -1828,7 +1875,7 @@ static status_code_t print_settings_details (settings_format_t format, setting_g
         do {
             for(idx = 0; idx < details->n_settings; idx++) {
                 setting = &details->settings[idx];
-                if((group == Group_All || setting->group == args.group) && (setting->is_available == NULL || setting->is_available(setting))) {
+                if(!setting->flags.hidden && (group == Group_All || setting->group == args.group) && (setting->is_available == NULL || setting->is_available(setting))) {
                     *psetting++ = (setting_detail_t *)setting;
                     n_settings++;
                 }
@@ -1849,7 +1896,7 @@ static status_code_t print_settings_details (settings_format_t format, setting_g
 
             setting = &details->settings[idx];
 
-            if(group == Group_All || setting->group == args.group) {
+            if(!setting->flags.hidden && (group == Group_All || setting->group == args.group)) {
                 if(settings_iterator(setting, print_unsorted, &args))
                     reported = true;
             }
@@ -1866,7 +1913,7 @@ status_code_t report_settings_details (settings_format_t format, setting_id_t id
 
         const setting_detail_t *setting = setting_get_details(id, NULL);
 
-        if(setting)
+        if(setting && !setting->flags.hidden)
             report_settings_detail(format, setting, id - setting->id);
         else
             status = Status_SettingDisabled;
@@ -1881,21 +1928,25 @@ status_code_t report_settings_details (settings_format_t format, setting_id_t id
 
 status_code_t report_setting_description (settings_format_t format, setting_id_t id)
 {
-    const setting_detail_t *setting = setting_get_details(id, NULL);
-    const char *description = setting_get_description(id);
+    const setting_detail_t *setting;
 
-    if(format == SettingsFormat_MachineReadable) {
-        hal.stream.write("[SETTINGDESCR:");
-        hal.stream.write(uitoa(id));
-        hal.stream.write(vbar);
+    if((setting = setting_get_details(id, NULL)) && !setting->flags.hidden) {
+
+        const char *description = setting_get_description(id);
+
+        if(format == SettingsFormat_MachineReadable) {
+            hal.stream.write("[SETTINGDESCR:");
+            hal.stream.write(uitoa(id));
+            hal.stream.write(vbar);
+        }
+    //    hal.stream.write(description == NULL ? (is_setting_available(setting_get_details(id, NULL)) ? "" : "N/A") : description); // TODO?
+        hal.stream.write(description ? description : (setting ? "" : "N/A"));
+        if(setting && setting->flags.reboot_required)
+            hal.stream.write(SETTINGS_HARD_RESET_REQUIRED + (description && *description != '\0' ? 0 : 4));
+
+        if(format == SettingsFormat_MachineReadable)
+            hal.stream.write("]" ASCII_EOL);
     }
-//    hal.stream.write(description == NULL ? (is_setting_available(setting_get_details(id, NULL)) ? "" : "N/A") : description); // TODO?
-    hal.stream.write(description ? description : (setting ? "" : "N/A"));
-    if(setting && setting->flags.reboot_required)
-        hal.stream.write(SETTINGS_HARD_RESET_REQUIRED + (description && *description != '\0' ? 0 : 4));
-
-    if(format == SettingsFormat_MachineReadable)
-        hal.stream.write("]" ASCII_EOL);
 
     return Status_OK;
 }
@@ -2167,12 +2218,12 @@ status_code_t report_current_home_signal_state (sys_state_t state, char *args)
 // Prints spindle data (encoder pulse and index count, angular position).
 status_code_t report_spindle_data (sys_state_t state, char *args)
 {
-    spindle_ptrs_t *spindle = gc_spindle_get();
+    spindle_t *spindle = gc_spindle_get(-1);
 
-    if(spindle->get_data) {
+    if(spindle->hal->get_data) {
 
-        float apos = spindle->get_data(SpindleData_AngularPosition)->angular_position;
-        spindle_data_t *data = spindle->get_data(SpindleData_Counters);
+        float apos = spindle->hal->get_data(SpindleData_AngularPosition)->angular_position;
+        spindle_data_t *data = spindle->hal->get_data(SpindleData_Counters);
 
         hal.stream.write("[SPINDLEENCODER:");
         hal.stream.write(uitoa(data->index_count));
@@ -2185,7 +2236,7 @@ status_code_t report_spindle_data (sys_state_t state, char *args)
         hal.stream.write("]" ASCII_EOL);
     }
 
-    return spindle->get_data ? Status_OK : Status_InvalidStatement;
+    return spindle->hal->get_data ? Status_OK : Status_InvalidStatement;
 }
 
 // Prints info about registered pins.
@@ -2441,7 +2492,7 @@ status_code_t report_time (void)
     return ok ? Status_OK : Status_InvalidStatement;
 }
 
-static void report_spindle (spindle_info_t *spindle, void *data)
+static bool report_spindle (spindle_info_t *spindle, void *data)
 {
     if(data) {
         char *caps = buf;
@@ -2503,11 +2554,62 @@ static void report_spindle (spindle_info_t *spindle, void *data)
         }
         hal.stream.write(ASCII_EOL);
     }
+
+    return false;
 }
+
+#if N_SPINDLE > 1
+
+typedef struct {
+    uint32_t idx;
+    uint32_t n_spindles;
+    spindle_info_t *spindles;
+} spindle_rdata_t;
+
+static bool get_spindles (spindle_info_t *spindle, void *data)
+{
+    memcpy(&((spindle_rdata_t *)data)->spindles[((spindle_rdata_t *)data)->idx++], spindle, sizeof(spindle_info_t));
+
+    return false;
+}
+
+static int cmp_spindles (const void *a, const void *b)
+{
+    uint32_t key_a = ((spindle_info_t *)a)->num == -1 ? ((((spindle_info_t *)a)->hal->type + 1) << 8) | ((spindle_info_t *)a)->id : ((spindle_info_t *)a)->num,
+             key_b = ((spindle_info_t *)b)->num == -1 ? ((((spindle_info_t *)b)->hal->type + 1) << 8) | ((spindle_info_t *)b)->id : ((spindle_info_t *)b)->num;
+
+    return key_a - key_b;
+}
+
+#endif
 
 status_code_t report_spindles (bool machine_readable)
 {
-    if(!spindle_enumerate_spindles(report_spindle, (void *)machine_readable) && !machine_readable)
+    bool has_spindles;
+
+#if N_SPINDLE > 1
+
+    spindle_rdata_t spindle_data = {0};
+
+    if((spindle_data.spindles = malloc(N_SPINDLE * sizeof(spindle_info_t)))) {
+
+        has_spindles = spindle_enumerate_spindles(get_spindles, &spindle_data);
+
+        spindle_data.n_spindles = spindle_data.idx;
+
+        qsort(spindle_data.spindles, spindle_data.n_spindles, sizeof(spindle_info_t), cmp_spindles);
+        for(spindle_data.idx = 0; spindle_data.idx < spindle_data.n_spindles; spindle_data.idx++)
+            report_spindle(&spindle_data.spindles[spindle_data.idx], (void *)machine_readable);
+
+        free(spindle_data.spindles);
+
+    } else
+
+#endif
+
+    has_spindles = spindle_enumerate_spindles(report_spindle, (void *)machine_readable);
+
+    if(!has_spindles && !machine_readable)
         hal.stream.write("No spindles registered." ASCII_EOL);
 
     return Status_OK;
