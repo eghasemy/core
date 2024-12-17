@@ -502,6 +502,8 @@ typedef enum {
 // 900-999 - reserved for automatic tool changers (ATC)
 //
 
+    Setting_TicksSecond  = 1000,
+
 // ---
     Setting_SettingsMax,
     Setting_SettingsAll = Setting_SettingsMax,
@@ -822,6 +824,7 @@ typedef struct {
     float timezone;
     uint16_t report_interval;
     uint16_t planner_buffer_blocks;
+    uint16_t acceleration_ticks_second;
     machine_mode_t mode;
     tool_change_settings_t tool_change;
     axis_settings_t axis[N_AXIS];

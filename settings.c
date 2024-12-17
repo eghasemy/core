@@ -70,6 +70,7 @@ PROGMEM const settings_t defaults = {
     .report_interval = DEFAULT_AUTOREPORT_INTERVAL,
     .timezone = DEFAULT_TIMEZONE_OFFSET,
     .planner_buffer_blocks = DEFAULT_PLANNER_BUFFER_BLOCKS,
+    .acceleration_ticks_second = ACCELERATION_TICKS_PER_SECOND,
     .flags.legacy_rt_commands = DEFAULT_LEGACY_RTCOMMANDS,
     .flags.report_inches = DEFAULT_REPORT_INCHES,
     .flags.sleep_enable = DEFAULT_SLEEP_ENABLE && SLEEP_DURATION > 0.0f,
@@ -633,6 +634,7 @@ PROGMEM static const setting_detail_t setting_detail[] = {
      { Setting_SpindleOnDelay, Group_Spindle, "Spindle on delay", "s", Format_Decimal, "#0.0", "0.5", "20", Setting_IsExtended, &settings.safety_door.spindle_on_delay, NULL, is_setting_available },
      { Setting_SpindleType, Group_Spindle, "Default spindle", NULL, Format_RadioButtons, spindle_types, NULL, NULL, Setting_IsExtendedFn, set_default_spindle, get_int, is_setting_available },
      { Setting_PlannerBlocks, Group_General, "Planner buffer blocks", NULL, Format_Int16, "####0", "30", "1000", Setting_IsExtended, &settings.planner_buffer_blocks, NULL, NULL, { .reboot_required = On } },
+     { Setting_TicksSecond, Group_General, "Acceleration ticks per second", NULL, Format_Int16, "####0", "1", "16000", Setting_IsExtended, &settings.acceleration_ticks_second, NULL, NULL, { .reboot_required = On } },
      { Setting_AutoReportInterval, Group_General, "Autoreport interval", "ms", Format_Int16, "###0", "100", "1000", Setting_IsExtendedFn, set_report_interval, get_int, NULL, { .reboot_required = On, .allow_null = On } },
 //     { Setting_TimeZoneOffset, Group_General, "Timezone offset", NULL, Format_Decimal, "-#0.00", "0", "12", Setting_IsExtended, &settings.timezone, NULL, NULL },
      { Setting_UnlockAfterEStop, Group_General, "Unlock required after E-Stop", NULL, Format_Bool, NULL, NULL, NULL, Setting_IsExtendedFn, set_estop_unlock, get_int, is_setting_available },
@@ -2349,6 +2351,9 @@ bool read_global_settings ()
 
     if(settings.planner_buffer_blocks < 30 || settings.planner_buffer_blocks > 1000)
         settings.planner_buffer_blocks = 35;
+    
+    if(settings.acceleration_ticks_second < 50 || settings. acceleration_ticks_second > 2000)
+        settings.acceleration_ticks_second = 100;
 
     if(!hal.driver_cap.spindle_encoder)
         settings.spindle.ppr = 0;
