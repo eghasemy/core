@@ -1,9 +1,8 @@
 /*
-  stream_file.h - stream redirector for file input
+
+  crc.h - crc implementations used by grblHAL
 
   Part of grblHAL
-
-  Copyright (c) 2024 Terje Io
 
   grblHAL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -17,13 +16,11 @@
 
   You should have received a copy of the GNU General Public License
   along with grblHAL. If not, see <http://www.gnu.org/licenses/>.
+
 */
 
 #pragma once
 
-#include "vfs.h"
-#include "core_handlers.h"
-
-bool stream_is_file (void);
-void stream_redirect_close (vfs_file_t *file);
-vfs_file_t *stream_redirect_read (char *filename, status_message_ptr status_handler, on_file_end_ptr eof_handler);
+uint16_t grbl_crc8 (const uint8_t *data, uint32_t size);
+uint16_t modbus_crc16x (const uint8_t *buf, uint_fast16_t len);
+uint16_t ccitt_crc16 (const uint8_t *buf, uint_fast16_t len);

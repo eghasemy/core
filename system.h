@@ -84,11 +84,25 @@ __NOTE:__ flags are mutually exclusive, bit map allows testing for multiple stat
 #define STATE_TOOL_CHANGE   bit(9) //!< Manual tool change, similar to #STATE_HOLD - but stops spindle and allows jogging.
 ///@}
 
-typedef enum {
-    Mode_Standard = 0,
-    Mode_Laser,
-    Mode_Lathe
+#ifdef ARDUINO
+
+typedef enum  {
+    Mode_Standard = 0,      //!< 0
+    Mode_Laser,             //!< 1
+    Mode_Lathe              //!< 2
 } machine_mode_t;
+
+#else
+
+typedef uint8_t machine_mode_t;
+
+enum machine_mode_t {
+    Mode_Standard = 0,      //!< 0
+    Mode_Laser,             //!< 1
+    Mode_Lathe              //!< 2
+};
+
+#endif
 
 typedef enum {
     Parking_DoorClosed = 0, //!< 0
@@ -121,8 +135,9 @@ typedef union {
 
 // NOTE: the pin_function_t enum must be kept in sync with any changes!
 typedef union {
-    uint16_t value;
+    uint16_t bits;
     uint16_t mask;
+    uint16_t value;
     struct {
         uint16_t reset              :1,
                  feed_hold          :1,
