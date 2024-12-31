@@ -439,7 +439,6 @@ static char axis_steps[9] = "step/mm";
 #endif
 #define AXIS_OPTS { .subgroups = On, .increment = 1 }
 
-     { Setting_TicksSecond, Group_General, "Acceleration ticks per second", NULL, Format_Int16, "####0", "1", "16000", Setting_IsExtended, &settings.acceleration_ticks_second, NULL, NULL, { .reboot_required = On } },
 // Acceleration override
 
 static struct {
@@ -2011,6 +2010,7 @@ PROGMEM static const setting_detail_t setting_detail[] = {
      { Setting_SpindleOnDelay, Group_Spindle, "Spindle on delay", "s", Format_Decimal, "#0.0", "0.5", "20", Setting_IsExtended, &settings.safety_door.spindle_on_delay, NULL, is_setting_available },
      { Setting_SpindleType, Group_Spindle, "Default spindle", NULL, Format_RadioButtons, spindle_types, NULL, NULL, Setting_IsExtendedFn, set_default_spindle, get_int, is_setting_available },
      { Setting_PlannerBlocks, Group_General, "Planner buffer blocks", NULL, Format_Int16, "####0", "30", "1000", Setting_IsExtended, &settings.planner_buffer_blocks, NULL, NULL, { .reboot_required = On } },
+     { Setting_TicksSecond, Group_General, "Acceleration ticks per second", NULL, Format_Int16, "####0", "1", "16000", Setting_IsExtended, &settings.acceleration_ticks_second, NULL, NULL, { .reboot_required = On } },     
      { Setting_AutoReportInterval, Group_General, "Autoreport interval", "ms", Format_Int16, "###0", "100", "1000", Setting_IsExtendedFn, set_report_interval, get_int, NULL, { .reboot_required = On, .allow_null = On } },
 //     { Setting_TimeZoneOffset, Group_General, "Timezone offset", NULL, Format_Decimal, "-#0.00", "0", "12", Setting_IsExtended, &settings.timezone, NULL, NULL },
      { Setting_UnlockAfterEStop, Group_General, "Unlock required after E-Stop", NULL, Format_Bool, NULL, NULL, NULL, Setting_IsExtendedFn, set_estop_unlock, get_int, is_setting_available },
