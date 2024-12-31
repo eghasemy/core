@@ -2387,6 +2387,9 @@ bool read_global_settings ()
     if(settings.planner_buffer_blocks < 30 || settings.planner_buffer_blocks > 1000)
         settings.planner_buffer_blocks = 35;
 
+    if(settings.acceleration_ticks_second < 100 || settings.acceleration_ticks_second > 1000)
+        settings.acceleration_ticks_second = 100;        
+
     if(!hal.driver_cap.spindle_encoder)
         settings.spindle.ppr = 0;
 

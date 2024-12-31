@@ -863,11 +863,18 @@ void st_prep_buffer (void)
           the end of planner block (typical) or mid-block at the end of a forced deceleration,
           such as from a feed hold.
         */
+        #if (BILLMILL)
         //#define DT_SEGMENT (1.0f / (ACCELERATION_TICKS_PER_SECOND * 60.0f)) // min/segment
+        //float dt_max = DT_SEGMENT; // Maximum segment time
         float dt_segment = (1.0f / (settings.acceleration_ticks_second * 60.0f));
         float dt_max = dt_segment; // Maximum segment time
+        #else
+        float dt_max = DT_SEGMENT; // Maximum segment time
+        #endif
         float dt = 0.0f; // Initialize segment time
         float time_var = dt_max; // Time worker variable
+
+
 #if ENABLE_JERK_ACCELERATION   
         float last_segment_accel = 0.0f; // Acceleration value of last computed segment. Initialize as 0.0
 #endif
@@ -980,7 +987,11 @@ void st_prep_buffer (void)
                 if (mm_remaining > minimum_mm) { // Check for very slow segments with zero steps.
                     // Increase segment time to ensure at least one step in segment. Override and loop
                     // through distance calculations until minimum_mm or mm_complete.
+                    #if (BILLMILL)
                     dt_max += dt_segment;
+                    #else
+                    dt_max += DT_SEGMENT;
+                    #endif
                     time_var = dt_max - dt;
                 } else
                     break; // **Complete** Exit loop. Segment execution time maxed.
