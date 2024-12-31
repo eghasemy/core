@@ -1,10 +1,191 @@
 ## grblHAL changelog
 
-<a name="20241205"> 20241205
+<a name="20241226">Build 20241230
+
+Core:
+
+* Fix for laser incorrectly enabled in laser mode when `M3S<n>` commanded in `G0` and `G80` modal states. Ref. issue [#644](https://github.com/grblHAL/core/issues/644).
+
+* Added support for 3rd order acceleration \(jerk\) and G187 gcode. Ref. pull request [#593](https://github.com/grblHAL/core/pull/593).
 
 Drivers:
 
-* RP2040: initial support for RP2350 \(Pico 2\) added.
+* STM32F4xx: updated ST framework to latest version, added support for ethernet via DP83848 PHY.
+
+* STM32F4xx, STM32F7xx: Improved SD card mount/dismount handling and added support for card detect signal.  
+Now flags RTC as set if date >= grblHAL build date.
+
+* LPC176x: added function required for Modbus support. Renamed bootloader build option to avoid confusion.
+
+Plugins:
+
+* SD card: improved mount/dismount handling.
+
+---
+
+<a name="20241226">20241226
+
+Drivers:
+
+* STM32F4xx: SuperLongBoard - fix for not enabling steppers after clearing E-stop alarm. Ref. issue [#203](https://github.com/grblHAL/STM32F4xx/issues/203).
+
+Plugins:
+
+* Networking: fix for not bringing up the network stack on link aquired when static IP configured, affects WizNet modules.
+
+* Motors: fix for "typo" blocking StealthChop mode for TMC2209 drivers when it should be for TMC2660. Ref. issue [#17](https://github.com/grblHAL/Plugins_motor/issues/17).
+
+--
+
+<a name="20241222">20241222
+
+Drivers:
+
+* iMXRT1062: added fix for not bringing up the network stack on link aquired when static IP configured.  
+Fixes for boards not booting when pin controlled MPG mode option selected.
+
+---
+
+<a name="20241222">Build 20241222
+
+Core:
+
+* Improved handling of real-time clock \(RTC\).
+
+Drivers:
+
+* ESP32: added support for 4-lane SDIO SD card interface and SD card detect input. Updated RTC handling to match core.
+
+* iMXRT1062: fix for littlefs issue. Ref. [this comment](https://github.com/grblHAL/core/discussions/203#discussioncomment-11646077).
+
+* RP2040, STM32F4xx, STM3F27xx: updated RTC handling to match core.
+
+Plugins:
+
+* SD card, Networking: added missing include.
+
+---
+
+<a name="20241219">Build 20241219
+
+Core:
+
+* Added directory \(mounts\) listing capabilities to the default root file system when no real root file system \(SD card\) is mounted.
+
+Boards:
+
+* ESP32, iMXRT1062, RP2040: added option to mount littlefs as root filesystem when SD card is not enabled.  
+Ref. RP2040 issue [#103](https://github.com/grblHAL/RP2040/issues/103).
+
+* STM32F3xx: added serial port to `$pins` report.
+
+Plugins:
+
+* WebUI, Networking and SD card: updated to handle littlefs mounted as root filesystem.
+
+---
+
+## grblHAL changelog
+
+<a name="20241217">Build 20241217
+
+Core:
+
+* Added preprocessor support for moving coolant outputs to auxiliary pool. Some minor bug fixes and code cleanup.  
+Those who have custom board maps must update pin assignments accordingly when updating to this or later versions.
+
+Drivers:
+
+* Most: moved coolant outputs to auxiliary outputs pool for many boards.  
+Web Builder functionality for assigning those outputs as coolant or as auxiliary (controlled by M62-M65) will be forthcoming.
+
+* ESP32: added driver support for second PWM spindle, only configurable for the MKS DLC32 v2 board for now.
+
+Plugins:
+
+* Spindle: removed obsoleted code, fix for second PWM spindle w/o direction output.
+
+<a name="20241214">Build 20241214
+
+Core:
+
+* Added suppression of door open signal when in manual or semi-automatic tool change mode.
+
+Drivers:
+
+* ESP32: added board map for BTT Rodent. Untested!
+
+* STM32F7xx: added `$DFU` system command for entering DFU programming mode.
+
+Plugins:
+
+* Misc, ESP-AT: added compile time symbol for selecting stream to use.
+
+---
+
+<a name="20241212">20241212
+
+Drivers:
+
+* ESP32: added generic map for ESP32-S3, refactored UART and lowlevel Trinamic driver code. Removed superfluous definitions in board maps.
+
+* RP2040: fix for Ethernet config errors when no WizNet module is installed.
+
+Plugins:
+
+* Trinamic: disabled current settings pot for TMC2209 drivers. __NOTE:__ this may result in a larger current than expected flowing, if motors runs hot readjust!
+
+---
+
+<a name="20241210">Build 20241210
+
+Core:
+
+* Increased preprocessor support for up to 16 auxiliary input pins, used by STM32* drivers.
+
+Drivers:
+
+* STM32F4xx: fix for Superlongboard \(SLB\) not enabling stepper drivers after E-Stop.
+
+Plugins:
+
+* Motors: added API call for reinitializing stepper drivers.
+
+---
+
+<a name="20241208">Build 20241208
+
+Core:
+
+* Revised core setting structures, changed from 8-bit to 16-bit CRC checksums for improved detection of corruption/version mismatches.  
+__NOTE:__ Backup and restore settings over an update since _all_ settings will be reset to default. Any odometer data will also be lost.
+
+* Added option to homing enable setting (`$22`) for per axis homing feedrates.  
+When this option is selected setting `$24` and $`25` will be disabled and new axis settings made available;
+`$18<n>` replaces `$24` and `$19<n>` replaces `$25`. `<n>` is the axis number; `0` for X, `1` for Y, ...  
+__NOTE:__ if axes are set up for simultaneous homing and they do not have the same feedrates they will be homed separately.  
+__NOTE:__ `$18<n>` and `$19<n>` were previousely implemented by the Trinamic motor plugin, the implementation is now in the core.  
+__NOTE:__ core settings will now overflow the legacy 1024 byte boundary when > 5 axes are configured, in the previous version when > 6 axes were configured.
+
+Drivers:
+
+* All: updated for the revised settings structures.
+
+* iMXRT1062, RP2040 and SAM3X8E: improved step injection option used by the Plasma plugin and stepper spindle option.
+
+* RP2040: tuning for the new RP2350 MCU, fixes step timings.
+
+Plugins:
+
+* Some updated for the revised settings structures.
+
+---
+
+<a name="20241205">20241205
+
+Drivers:
+
+* RP2040: initial support for RP2350 \(Pico 2\) added to Web Builder.
 
 Plugins:
 
@@ -12,7 +193,7 @@ Plugins:
 
 ---
 
-<a name="20241204"> 20241204
+<a name="20241204">20241204
 
 Core:
 

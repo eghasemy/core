@@ -223,7 +223,7 @@ ISR_CODE void ISR_FUNC(st_go_idle)(void)
 }
 
 
-/* "The Stepper Driver Interrupt" - This timer interrupt is the workhorse of Grbl. Grbl employs
+/* "The Stepper Driver Interrupt" - This timer interrupt is the workhorse of grblHAL. grblHAL employs
    the venerable Bresenham line algorithm to manage and exactly synchronize multi-axis moves.
    Unlike the popular DDA algorithm, the Bresenham algorithm is not susceptible to numerical
    round-off errors and only requires fast integer counters, meaning low computational overhead
@@ -232,7 +232,7 @@ ISR_CODE void ISR_FUNC(st_go_idle)(void)
    pulse trains, or aliasing, which can lead to strange audible noises or shaking. This is
    particularly noticeable or may cause motion issues at low step frequencies (0-5kHz), but
    is usually not a physical problem at higher frequencies, although audible.
-     To improve Bresenham multi-axis performance, Grbl uses what we call an Adaptive Multi-Axis
+     To improve Bresenham multi-axis performance, grblHAL uses what we call an Adaptive Multi-Axis
    Step Smoothing (AMASS) algorithm, which does what the name implies. At lower step frequencies,
    AMASS artificially increases the Bresenham resolution without effecting the algorithm's
    innate exactness. AMASS adapts its resolution levels automatically depending on the step
@@ -246,7 +246,7 @@ ISR_CODE void ISR_FUNC(st_go_idle)(void)
    Level 2, we simply bit-shift again, so the non-dominant Bresenham axes can step within any
    of the four ISR ticks, the dominant axis steps every four ISR ticks, and quadruple the
    stepper ISR frequency. And so on. This, in effect, virtually eliminates multi-axis aliasing
-   issues with the Bresenham algorithm and does not significantly alter Grbl's performance, but
+   issues with the Bresenham algorithm and does not significantly alter grblHAL's performance, but
    in fact, more efficiently utilizes unused CPU cycles overall throughout all configurations.
      AMASS retains the Bresenham algorithm exactness by requiring that it always executes a full
    Bresenham step, regardless of AMASS Level. Meaning that for an AMASS Level 2, all four
@@ -263,9 +263,7 @@ ISR_CODE void ISR_FUNC(st_go_idle)(void)
    after each pulse. The bresenham line tracer algorithm controls all stepper outputs
    simultaneously with these two interrupts.
 
-   NOTE: This interrupt must be as efficient as possible and complete before the next ISR tick,
-   which for Grbl must be less than 33.3usec (@30kHz ISR rate). Oscilloscope measured time in
-   ISR is 5usec typical and 25usec maximum, well below requirement.
+   NOTE: This interrupt must be as efficient as possible and complete before the next ISR tick.
    NOTE: This ISR expects at least one step to be executed per segment.
 */
 
@@ -393,8 +391,10 @@ ISR_CODE void ISR_FUNC(stepper_driver_interrupt_handler)(void)
             st_go_idle();
 
             // Ensure pwm is set properly upon completion of rate-controlled motion.
-            if (st.exec_block->dynamic_rpm && st.exec_block->spindle->cap.laser)
+            if(st.exec_block->dynamic_rpm && st.exec_block->spindle->cap.laser) {
+                prep.current_spindle_rpm = 0.0f;
                 st.exec_block->spindle->update_pwm(st.exec_block->spindle, st.exec_block->spindle->pwm_off_value);
+            }
 
             st.exec_block = NULL;
             system_set_exec_state_flag(EXEC_CYCLE_COMPLETE); // Flag main program for cycle complete
@@ -866,6 +866,9 @@ void st_prep_buffer (void)
         float dt_max = DT_SEGMENT; // Maximum segment time
         float dt = 0.0f; // Initialize segment time
         float time_var = dt_max; // Time worker variable
+#if ENABLE_JERK_ACCELERATION   
+        float last_segment_accel = 0.0f; // Acceleration value of last computed segment. Initialize as 0.0
+#endif
         float mm_var; // mm - Distance worker variable
         float speed_var; // Speed worker variable
         float mm_remaining = pl_block->millimeters; // New segment distance from end of block.
@@ -894,7 +897,20 @@ void st_prep_buffer (void)
 
                 case Ramp_Accel:
                     // NOTE: Acceleration ramp only computes during first do-while loop.
+#if ENABLE_JERK_ACCELERATION   
+                    if (((mm_remaining - prep.accelerate_until) / (prep.current_speed + 0.001f)) <= (last_segment_accel / pl_block->jerk)) { 
+                        //+0.001f to avoid divide by 0 speed, minor effect on jerk ramp (+1.0f was too large for low jerk values)
+                        // Check if we are on ramp up or ramp down. Ramp down if time to end of acceleration is less than time needed to reach 0 acceleration.
+                        // Then limit acceleration change by jerk up to max acceleration and update for next segment.
+                        // Minimum acceleration jerk per time_var to ensure acceleartion completes. Acceleration change at end of ramp is in acceptable jerk range.
+                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var); 
+                    } else {
+                        last_segment_accel = min(last_segment_accel + pl_block->jerk * time_var, pl_block->max_acceleration); 
+                    }
+                    speed_var = last_segment_accel * time_var;
+#else
                     speed_var = pl_block->acceleration * time_var;
+#endif
                     mm_remaining -= time_var * (prep.current_speed + 0.5f * speed_var);
                     if (mm_remaining < prep.accelerate_until) { // End of acceleration ramp.
                         // Acceleration-cruise, acceleration-deceleration ramp junction, or end of block.
@@ -902,6 +918,9 @@ void st_prep_buffer (void)
                         time_var = 2.0f * (pl_block->millimeters - mm_remaining) / (prep.current_speed + prep.maximum_speed);
                         prep.ramp_type = mm_remaining == prep.decelerate_after ? Ramp_Decel : Ramp_Cruise;
                         prep.current_speed = prep.maximum_speed;
+#if ENABLE_JERK_ACCELERATION
+                        last_segment_accel = 0.0f;  // reset acceleration variable to 0 for next accel ramp
+#endif
                     } else // Acceleration only.
                         prep.current_speed += speed_var;
                     break;
@@ -922,7 +941,20 @@ void st_prep_buffer (void)
 
                 default: // case Ramp_Decel:
                     // NOTE: mm_var used as a misc worker variable to prevent errors when near zero speed.
+#if ENABLE_JERK_ACCELERATION   
+                    if ((mm_remaining / (prep.current_speed + 0.001f)) <= (last_segment_accel / pl_block->jerk)) { 
+                        //+0.001f to avoid divide by 0 speed, minor effect on jerk ramp (+1.0f was too large for low jerk values)
+                        // Check if we are on ramp up or ramp down. Ramp down if time to end of deceleration is less than time needed to reach 0 acceleration.
+                        // Then limit acceleration change by jerk up to max acceleration and update for next segment.
+                        // Minimum acceleration of jerk per time_var to ensure acceleration completes. Acceleration change at end of ramp is in acceptable jerk range.
+                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var); 
+                    } else {
+                        last_segment_accel = min(last_segment_accel + pl_block->jerk * time_var, pl_block->max_acceleration); 
+                    }
+                    speed_var = last_segment_accel * time_var; // Used as delta speed (mm/min)
+#else
                     speed_var = pl_block->acceleration * time_var; // Used as delta speed (mm/min)
+#endif
                     if (prep.current_speed > speed_var) { // Check if at or below zero speed.
                         // Compute distance from end of segment to end of block.
                         mm_var = mm_remaining - time_var * (prep.current_speed - 0.5f * speed_var); // (mm)
@@ -1001,7 +1033,7 @@ void st_prep_buffer (void)
            However, since floats have only 7.2 significant digits, long moves with extremely
            high step counts can exceed the precision of floats, which can lead to lost steps.
            Fortunately, this scenario is highly unlikely and unrealistic in CNC machines
-           supported by Grbl (i.e. exceeding 10 meters axis travel at 200 step/mm).
+           supported by grblHAL (i.e. exceeding 10 meters axis travel at 200 step/mm).
         */
         float step_dist_remaining = prep.steps_per_mm * mm_remaining; // Convert mm_remaining to steps
         uint32_t n_steps_remaining = (uint32_t)ceilf(step_dist_remaining); // Round-up current steps remaining
@@ -1024,7 +1056,7 @@ void st_prep_buffer (void)
         // compensate, we track the time to execute the previous segment's partial step and simply
         // apply it with the partial step distance to the current segment, so that it minutely
         // adjusts the whole segment rate to keep step output exact. These rate adjustments are
-        // typically very small and do not adversely effect performance, but ensures that Grbl
+        // typically very small and do not adversely effect performance, but ensures that grblHAL
         // outputs the exact acceleration and velocity profiles as computed by the planner.
         dt += prep.dt_remainder; // Apply previous segment partial step execute time
         float inv_rate = dt / ((float)prep.steps_remaining - step_dist_remaining); // Compute adjusted step rate inverse

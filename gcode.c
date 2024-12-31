@@ -288,6 +288,24 @@ plane_t *gc_get_plane_data (plane_t *plane, plane_select_t select)
     return plane;
 }
 
+#if ENABLE_ACCELERATION_PROFILES
+
+//Acceleration Profiles for G187 P[x] in percent of maximum machine acceleration.
+float gc_get_accel_factor (uint8_t profile)
+{
+    static const float lookup[] = {
+        1.0f,   // 100% - Roughing - Max Acceleration Default
+        0.8f,   // 80% - Semi Roughing
+        0.6f,   // 60% - Semi Finish
+        0.4f,   // 40% - Finish
+        0.2f    // 20% - Slow AF Mode
+    };
+
+    return lookup[profile >= (sizeof(lookup) / sizeof(float)) ? 0 : profile];
+}
+
+#endif // ENABLE_ACCELERATION_PROFILES
+
 void gc_init (bool stop)
 {
 #if COMPATIBILITY_LEVEL > 1
@@ -360,6 +378,9 @@ void gc_init (bool stop)
 #endif
 #if NGC_PARAMETERS_ENABLE
     ngc_modal_state_invalidate();
+#endif
+#if ENABLE_ACCELERATION_PROFILES
+    gc_state.modal.acceleration_factor = gc_get_accel_factor(0); // Initialize machine with default
 #endif
 
 //    if(settings.flags.lathe_mode)
@@ -1193,6 +1214,15 @@ status_code_t gc_execute_block (char *block)
                         word_bit.modal_group.G11 = On;
                         gc_block.modal.scaling_active = int_value == 51;
                         break;
+
+#if ENABLE_ACCELERATION_PROFILES
+                    case 187:
+                        word_bit.modal_group.G0 = On;
+                        gc_block.non_modal_command = (non_modal_t)int_value;
+                        if(mantissa != 0)
+                            FAIL(Status_GcodeUnsupportedCommand);
+                        break;
+#endif
 
                     default: FAIL(Status_GcodeUnsupportedCommand); // [Unsupported G command]
                 } // end G-value switch
@@ -2358,7 +2388,19 @@ status_code_t gc_execute_block (char *block)
                     gc_block.values.xyz[idx] = gc_state.g92_coord_offset[idx];
             } while(idx);
             break;
+            
+#if ENABLE_ACCELERATION_PROFILES
+        case NonModal_SetAccelerationProfile:
+            if(gc_block.words.e)
+                FAIL(Status_GcodeUnsupportedCommand);
 
+            if(gc_block.words.p && (gc_block.values.p < 1.0f || gc_block.values.p > 5.0f))
+                FAIL(Status_GcodeValueOutOfRange);
+
+            gc_state.modal.acceleration_factor = gc_get_accel_factor(gc_block.words.p ? (uint8_t)gc_block.values.p - 1 : 0);
+            gc_block.words.p = Off;
+            break;
+#endif
         default:
 
             // At this point, the rest of the explicit axis commands treat the axis values as the traditional
@@ -3030,6 +3072,9 @@ status_code_t gc_execute_block (char *block)
     memset(&plan_data, 0, sizeof(plan_line_data_t)); // Zero plan_data struct
     plan_data.offset_id = gc_state.offset_id;
     plan_data.condition.target_validated = plan_data.condition.target_valid = sys.soft_limits.mask == 0;
+#if ENABLE_ACCELERATION_PROFILES
+    plan_data.acceleration_factor = gc_state.modal.acceleration_factor;
+#endif
 
     // Intercept jog commands and complete error checking for valid jog commands and execute.
     // NOTE: G-code parser state is not updated, except the position to ensure sequential jog
@@ -3136,6 +3181,10 @@ status_code_t gc_execute_block (char *block)
         }
         sspindle->rpm = gc_block.values.s; // Update spindle speed state.
     }
+
+    // NOTE: Pass zero spindle speed for all restricted laser motions.
+    plan_data.spindle.rpm = gc_parser_flags.laser_disable ? 0.0f : gc_block.values.s;
+
 #if N_SYS_SPINDLE > 1
   }
 #endif
@@ -3304,28 +3353,24 @@ status_code_t gc_execute_block (char *block)
         if((spindle_ok = sspindle->state.value != gc_block.spindle_modal.state.value)) {
 
             if(grbl.on_spindle_programmed)
-                grbl.on_spindle_programmed(sspindle->hal, gc_block.spindle_modal.state, sspindle->rpm, sspindle->rpm_mode);
+                grbl.on_spindle_programmed(sspindle->hal, gc_block.spindle_modal.state, plan_data.spindle.rpm, sspindle->rpm_mode);
 
-            if((spindle_ok = spindle_sync(sspindle->hal, gc_block.spindle_modal.state, sspindle->rpm)))
+            if((spindle_ok = spindle_sync(sspindle->hal, gc_block.spindle_modal.state, plan_data.spindle.rpm)))
                 sspindle->state = sspindle->hal->param->state = gc_block.spindle_modal.state;
 
             spindle_event = !spindle_ok;
         }
 
         if(spindle_event && grbl.on_spindle_programmed)
-            grbl.on_spindle_programmed(sspindle->hal, sspindle->state, sspindle->rpm, sspindle->rpm_mode);
+            grbl.on_spindle_programmed(sspindle->hal, sspindle->state, plan_data.spindle.rpm, sspindle->rpm_mode);
     }
 
     if(sspindle != NULL)
         gc_state.spindle = sspindle; // for now
 
-    // NOTE: Pass zero spindle speed for all restricted laser motions.
-    if(!gc_parser_flags.laser_disable)
-        memcpy(&plan_data.spindle, gc_state.spindle, sizeof(spindle_t)); // Record data for planner use.
-    else {
-        plan_data.spindle.hal = gc_state.spindle->hal;
-    //  plan_data.spindle.speed = 0.0f; // Initialized as zero already.
-    }
+    plan_data.spindle.hal = gc_state.spindle->hal;
+    memcpy(&plan_data.spindle, gc_state.spindle, offsetof(spindle_t, rpm)); // Record data for planner use.
+
 // TODO: Recheck spindle running in CCS mode (is_rpm_pos_adjusted == On)?
 
     plan_data.spindle.state = gc_state.spindle->state; // Set condition flag for planner use.
@@ -3819,6 +3864,9 @@ status_code_t gc_execute_block (char *block)
             gc_state.modal.coolant = (coolant_state_t){0};
             gc_state.modal.override_ctrl.feed_rate_disable = Off;
             gc_state.modal.override_ctrl.spindle_rpm_disable = Off;
+#if ENABLE_ACCELERATION_PROFILES
+            gc_state.modal.acceleration_factor = gc_get_accel_factor(0);
+#endif
 
 #if N_SYS_SPINDLE > 1
 

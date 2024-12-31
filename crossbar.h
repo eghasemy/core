@@ -165,7 +165,11 @@ typedef enum {
     Output_Aux9,
     Output_Aux10,
     Output_Aux11,
-    Output_AuxMax = Output_Aux11,
+    Output_Aux12,
+    Output_Aux13,
+    Output_Aux14,
+    Output_Aux15,
+    Output_AuxMax = Output_Aux15,
     Output_Analog_Aux0,
     Output_Analog_Aux1,
     Output_Analog_Aux2,
@@ -376,6 +380,10 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Output_Aux9,                .name = "Aux out 9" },
     { .function = Output_Aux10,               .name = "Aux out 10" },
     { .function = Output_Aux11,               .name = "Aux out 11" },
+    { .function = Output_Aux12,               .name = "Aux out 12" },
+    { .function = Output_Aux13,               .name = "Aux out 13" },
+    { .function = Output_Aux14,               .name = "Aux out 14" },
+    { .function = Output_Aux15,               .name = "Aux out 15" },
     { .function = Output_Analog_Aux0,         .name = "Aux analog out 0" },
     { .function = Output_Analog_Aux1,         .name = "Aux analog out 1" },
     { .function = Output_Analog_Aux2,         .name = "Aux analog out 2" },
@@ -437,7 +445,6 @@ typedef enum {
     PinGroup_AuxOutput,
     PinGroup_AuxInputAnalog,
     PinGroup_AuxOutputAnalog,
-    PinGroup_SdCard,
     PinGroup_MotorChipSelect,
     PinGroup_MotorUART,
     PinGroup_I2C,
@@ -463,7 +470,8 @@ typedef enum {
     PinGroup_QEI_Index     = (1<<16),
     PinGroup_Motor_Warning = (1<<17),
     PinGroup_Motor_Fault   = (1<<18),
-    PinGroup_AuxInput      = (1<<19)
+    PinGroup_SdCard        = (1<<19),
+    PinGroup_AuxInput      = (1<<20)
 } pin_group_t;
 
 //! Pin interrupt modes, may be or'ed when reporting pin capability.

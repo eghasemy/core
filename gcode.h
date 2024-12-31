@@ -59,7 +59,12 @@ typedef enum {
     NonModal_SetCoordinateOffset = 92,      //!< 92 - G92
     NonModal_ResetCoordinateOffset = 102,   //!< 102 - G92.1
     NonModal_ClearCoordinateOffset = 112,   //!< 112 - G92.2
-    NonModal_RestoreCoordinateOffset = 122  //!< 122 - G92.3
+ #if ENABLE_ACCELERATION_PROFILES
+    NonModal_RestoreCoordinateOffset = 122, //!< 122 - G92.3
+    NonModal_SetAccelerationProfile = 187   //!< 187 - G187 
+ #else
+    NonModal_RestoreCoordinateOffset = 122 //!< 122 - G92.3
+ #endif
 } non_modal_t;
 
 
@@ -497,11 +502,22 @@ typedef struct {
     const gc_value_type_t type;
 } gc_value_ptr_t;
 
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t is_rpm_rate_adjusted :1,
+                is_laser_ppi_mode    :1,
+                unassigned           :6;
+
+    };
+} spindle_cond_t;
+
 typedef struct {
-    float rpm;                      //!< Spindle speed
     spindle_state_t state;          //!< {M3,M4,M5}
     spindle_rpm_mode_t rpm_mode;    //!< {G96,G97}
     spindle_css_data_t *css;        //!< Data used for Constant Surface Speed Mode calculations
+    spindle_cond_t condition;       //!< TODO: move data from planner_cond_t here
+    float rpm;                      //!< Spindle speed. Must be second last!
     spindle_ptrs_t *hal;            //!< Spindle function pointers etc. Must be last!
 } spindle_t;
 
@@ -540,6 +556,9 @@ typedef struct {
 #if NGC_PARAMETERS_ENABLE
     bool auto_restore;
     float feed_rate;                     //!< {F} NOTE: only set when saving modal state
+#endif
+#if ENABLE_ACCELERATION_PROFILES
+    float acceleration_factor;          //!< {G187} currently active factor of acceleration profile
 #endif
 } gc_modal_t;
 
@@ -691,6 +710,10 @@ plane_t *gc_get_plane_data (plane_t *plane, plane_select_t select);
 #if NGC_PARAMETERS_ENABLE
 parameter_words_t gc_get_g65_arguments (void);
 bool gc_modal_state_restore (gc_modal_t *copy);
+#endif
+
+#if ENABLE_ACCELERATION_PROFILES
+float gc_get_accel_factor (uint8_t profile);
 #endif
 
 #endif // _GCODE_H_
