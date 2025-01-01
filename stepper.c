@@ -88,6 +88,10 @@ static amass_t amass;
 // after probe signal has been asserted.
 static volatile bool probe_asserted = false;
 
+#if ENABLE_JERK_ACCELERATION   
+        static float last_segment_accel = 0.0f; // Acceleration value of last computed segment. Initialize as 0.0
+#endif
+
 // Stepper timer ticks per minute
 static float cycles_per_min;
 
@@ -866,9 +870,7 @@ void st_prep_buffer (void)
         float dt_max = DT_SEGMENT; // Maximum segment time
         float dt = 0.0f; // Initialize segment time
         float time_var = dt_max; // Time worker variable
-#if ENABLE_JERK_ACCELERATION   
-        float last_segment_accel = 0.0f; // Acceleration value of last computed segment. Initialize as 0.0
-#endif
+
         float mm_var; // mm - Distance worker variable
         float speed_var; // Speed worker variable
         float mm_remaining = pl_block->millimeters; // New segment distance from end of block.
@@ -881,8 +883,11 @@ void st_prep_buffer (void)
 
             switch (prep.ramp_type) {
 
-                case Ramp_DecelOverride:
+                case Ramp_DecelOverride:        
                     speed_var = pl_block->acceleration * time_var;
+#if ENABLE_JERK_ACCELERATION
+                    last_segment_accel = 0.0f;  // reset acceleration variable to 0 for next accel ramp
+#endif                    
                     if ((prep.current_speed - prep.maximum_speed) <= speed_var) {
                         // Cruise or cruise-deceleration types only for deceleration override.
                         mm_remaining = prep.accelerate_until;
@@ -891,8 +896,8 @@ void st_prep_buffer (void)
                         prep.current_speed = prep.maximum_speed;
                     } else {// Mid-deceleration override ramp.
                         mm_remaining -= time_var * (prep.current_speed - 0.5f * speed_var);
-                        prep.current_speed -= speed_var;
-                    }
+                        prep.current_speed -= speed_var;                   
+                    }                    
                     break;
 
                 case Ramp_Accel:
@@ -903,11 +908,16 @@ void st_prep_buffer (void)
                         // Check if we are on ramp up or ramp down. Ramp down if time to end of acceleration is less than time needed to reach 0 acceleration.
                         // Then limit acceleration change by jerk up to max acceleration and update for next segment.
                         // Minimum acceleration jerk per time_var to ensure acceleartion completes. Acceleration change at end of ramp is in acceptable jerk range.
-                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var); 
+                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var);
+                        //debug_printf ("if_ramp_accel last_segment_accel: %f time_var: %f", last_segment_accel, time_var); 
                     } else {
-                        last_segment_accel = min(last_segment_accel + pl_block->jerk * time_var, pl_block->max_acceleration); 
+                        last_segment_accel = min(last_segment_accel + pl_block->jerk * time_var, pl_block->max_acceleration);
+                        //debug_printf ("else_ramp_accel last_segment_accel: %f time_var: %f", last_segment_accel, time_var); 
                     }
+                    
                     speed_var = last_segment_accel * time_var;
+                    //debug_printf ("ramp_accel last_segment_accel: %f time_var: %f", last_segment_accel, time_var);
+                    
 #else
                     speed_var = pl_block->acceleration * time_var;
 #endif
@@ -929,29 +939,36 @@ void st_prep_buffer (void)
                     // NOTE: mm_var used to retain the last mm_remaining for incomplete segment time_var calculations.
                     // NOTE: If maximum_speed*time_var value is too low, round-off can cause mm_var to not change. To
                     //   prevent this, simply enforce a minimum speed threshold in the planner.
+#if ENABLE_JERK_ACCELERATION
+                    last_segment_accel = 0.0f;  // reset acceleration variable to 0 for next accel ramp
+#endif                    
                     mm_var = mm_remaining - prep.maximum_speed * time_var;
                     if (mm_var < prep.decelerate_after) { // End of cruise.
-                        // Cruise-deceleration junction or end of block.
+                        // Cruise-deceleration junction or end of block.                  
                         time_var = (mm_remaining - prep.decelerate_after) / prep.maximum_speed;
                         mm_remaining = prep.decelerate_after; // NOTE: 0.0 at EOB
-                        prep.ramp_type = Ramp_Decel;
-                    } else // Cruising only.
+                        prep.ramp_type = Ramp_Decel;                       
+                    } else // Cruising only.                  
                         mm_remaining = mm_var;
                     break;
 
                 default: // case Ramp_Decel:
                     // NOTE: mm_var used as a misc worker variable to prevent errors when near zero speed.
-#if ENABLE_JERK_ACCELERATION   
+#if ENABLE_JERK_ACCELERATION 
+                    //debug_printf ("ramp_decel mm_remaining: %f prep.current_speed: %f", mm_remaining, prep.current_speed);
                     if ((mm_remaining / (prep.current_speed + 0.001f)) <= (last_segment_accel / pl_block->jerk)) { 
                         //+0.001f to avoid divide by 0 speed, minor effect on jerk ramp (+1.0f was too large for low jerk values)
                         // Check if we are on ramp up or ramp down. Ramp down if time to end of deceleration is less than time needed to reach 0 acceleration.
                         // Then limit acceleration change by jerk up to max acceleration and update for next segment.
                         // Minimum acceleration of jerk per time_var to ensure acceleration completes. Acceleration change at end of ramp is in acceptable jerk range.
-                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var); 
+                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var);
+                        debug_printf ("if_ramp_decel last_segment_accel: %f time_var: %f", last_segment_accel, time_var);
                     } else {
                         last_segment_accel = min(last_segment_accel + pl_block->jerk * time_var, pl_block->max_acceleration); 
+                        debug_printf ("else_ramp_decel last_segment_accel: %f time_var: %f", last_segment_accel, time_var);
                     }
                     speed_var = last_segment_accel * time_var; // Used as delta speed (mm/min)
+                    //debug_printf ("ramp_decel last_segment_accel: %f time_var: %f, speed_var: %f", last_segment_accel, time_var, speed_var);
 #else
                     speed_var = pl_block->acceleration * time_var; // Used as delta speed (mm/min)
 #endif
@@ -960,7 +977,7 @@ void st_prep_buffer (void)
                         mm_var = mm_remaining - time_var * (prep.current_speed - 0.5f * speed_var); // (mm)
                         if (mm_var > prep.mm_complete) { // Typical case. In deceleration ramp.
                             mm_remaining = mm_var;
-                            prep.current_speed -= speed_var;
+                            prep.current_speed -= speed_var;                          
                             break; // Segment complete. Exit switch-case statement. Continue do-while loop.
                         }
                     }
@@ -968,6 +985,9 @@ void st_prep_buffer (void)
                     time_var = 2.0f * (mm_remaining - prep.mm_complete) / (prep.current_speed + prep.exit_speed);
                     mm_remaining = prep.mm_complete;
                     prep.current_speed = prep.exit_speed;
+#if ENABLE_JERK_ACCELERATION
+                    last_segment_accel = 0.0f;  // reset acceleration variable to 0 for next accel ramp
+#endif                                        
             }
 
             dt += time_var; // Add computed ramp time to total segment time.
@@ -980,7 +1000,7 @@ void st_prep_buffer (void)
                     // through distance calculations until minimum_mm or mm_complete.
                     dt_max += DT_SEGMENT;
                     time_var = dt_max - dt;
-                } else
+                } else                
                     break; // **Complete** Exit loop. Segment execution time maxed.
             }
 

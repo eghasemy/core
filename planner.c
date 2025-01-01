@@ -543,6 +543,10 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
         block->programmed_rate = block->rapid_rate;
     else {
         block->programmed_rate = pl_data->feed_rate;
+
+        if (block->programmed_rate > block->rapid_rate)
+            block->programmed_rate = block->rapid_rate;
+
         if (block->condition.inverse_time)
             block->programmed_rate *= block->millimeters;
     }
@@ -551,7 +555,14 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     // ramp down of the acceleration at the start and end of a ramp we need to adjust the acceleration value the planner 
     // uses so it still calculates reasonable entry and exit speeds. We do this by adding 2x the time it takes to reach 
     // full acceleration to the trapezoidal acceleration time and dividing the programmed rate by the value obtained.
-    block->acceleration = block->programmed_rate / ((block->programmed_rate / block->max_acceleration) + 2.0f * (block->max_acceleration / block->jerk));
+    //block->acceleration = block->programmed_rate / ((block->programmed_rate / block->max_acceleration) + 2.0f * (block->max_acceleration / block->jerk));
+   
+    // For very low jerk values, we may never reach max_acceleration
+    // The effective acceleration is limited by: a_eff = sqrt(j * v)
+    // This comes from the area under the acceleration curve in an S-curve profile    
+    // Use the lower of jerk-limited acceleration or max acceleration
+
+    block->acceleration = fminf(sqrtf(block->jerk * block->programmed_rate), block->max_acceleration);
 #endif
 
     // TODO: Need to check this method handling zero junction speeds when starting from rest.
