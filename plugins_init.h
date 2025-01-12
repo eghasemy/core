@@ -138,6 +138,11 @@
     homing_pulloff_init();
 #endif
 
+#if PERSISTENT_TOOL_ENABLE
+    extern void persistent_tool_init (void);
+    persistent_tool_init();
+#endif
+
     extern void my_plugin_init (void);
     my_plugin_init();
 
