@@ -460,7 +460,8 @@ static void task_execute (sys_state_t state)
             void *data = task->data;
             foreground_task_ptr fn = task->fn;
             task_free(task);
-            fn(data);
+            if(fn)
+                fn(data);
         } while((task = task->next));
     }
 
@@ -480,8 +481,8 @@ static void task_execute (sys_state_t state)
         foreground_task_ptr fn = next_task->fn;
         task_free(next_task);
         next_task = next_task->next;
-
-        fn(data);
+        if(fn)
+            fn(data);
     }
 }
 
