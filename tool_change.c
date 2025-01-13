@@ -234,6 +234,16 @@ static void execute_probe (void *data)
         {
             system_convert_array_steps_to_mpos(target.values, sys.probe_position);
 
+        #ifdef ALTERNATE_TOOL_PROBE
+
+        // Retract slowly until contact lost.
+        plan_data.feed_rate = settings.tool_change.feed_rate;
+        target.values[plane.axis_linear] += TOOL_CHANGE_PROBE_RETRACT_DISTANCE;
+        flags.probe_is_away = true;
+        ok = mc_probe_cycle(target.values, &plan_data, flags) == GCProbe_Found;
+
+        #else
+
             // Retract a bit and perform slow probe.
             plan_data.feed_rate = settings.tool_change.pulloff_rate;
             target.values[plane.axis_linear] += TOOL_CHANGE_PROBE_RETRACT_DISTANCE;
@@ -243,6 +253,8 @@ static void execute_probe (void *data)
                 ok = mc_probe_cycle(target.values, &plan_data, flags) == GCProbe_Found;
             }
         }
+        #endif
+    }
 
         if(ok) {
             if(!(sys.tlo_reference_set.mask & bit(plane.axis_linear))) {
@@ -506,25 +518,6 @@ status_code_t tc_probe_workpiece (void)
     {
         system_convert_array_steps_to_mpos(target.values, sys.probe_position);
 
-        #ifdef ALTERNATE_TOOL_PROBE
-
-        // Retract slowly until contact lost.
-        plan_data.feed_rate = settings.tool_change.feed_rate;
-        target.values[plane.axis_linear] += TOOL_CHANGE_PROBE_RETRACT_DISTANCE;
-        flags.probe_is_away = true;
-        if((ok = mc_probe_cycle(target.values, &plan_data, flags) == GCProbe_Found)) {
-
-                // Retract a bit again so that any touch plate can be removed
-                system_convert_array_steps_to_mpos(target.values, sys.probe_position);
-                plan_data.feed_rate = settings.tool_change.seek_rate;
-                target.values[plane.axis_linear] += TOOL_CHANGE_PROBE_RETRACT_DISTANCE * 2.0f;
-                if(target.values[plane.axis_linear] > tool_change_position)
-                    target.values[plane.axis_linear] = tool_change_position;
-                ok = mc_line(target.values, &plan_data);
-            
-        }
-
-        #else
         // Retract a bit and perform slow probe.
         plan_data.feed_rate = settings.tool_change.pulloff_rate;
         target.values[plane.axis_linear] += TOOL_CHANGE_PROBE_RETRACT_DISTANCE;
@@ -542,7 +535,6 @@ status_code_t tc_probe_workpiece (void)
                 ok = mc_line(target.values, &plan_data);
             }
         }
-        #endif
     }
 
     if(ok && protocol_buffer_synchronize()) {
