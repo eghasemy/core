@@ -286,7 +286,12 @@ ISR_CODE static void ISR_FUNC(trap_control_cycle_start)(control_signals_t signal
     if(signals.cycle_start) {
         if(!execute_posted) {
             if(!block_cycle_start)
-                execute_posted = protocol_enqueue_foreground_task(settings.tool_change.mode == ToolChange_SemiAutomatic ? execute_probe : execute_restore, NULL);
+                execute_posted = protocol_enqueue_foreground_task(
+                (settings.tool_change.mode == ToolChange_SemiAutomatic || 
+                settings.tool_change.mode == ToolChange_FastSemiAutomatic) 
+                ? execute_probe 
+                : execute_restore, 
+                NULL);
             else
                 protocol_enqueue_foreground_task(execute_warning, NULL);
         }
@@ -306,7 +311,12 @@ ISR_CODE static bool ISR_FUNC(trap_stream_cycle_start)(char c)
     if((drop = (c == CMD_CYCLE_START || c == CMD_CYCLE_START_LEGACY))) {
         if(!execute_posted) {
             if(!block_cycle_start)
-                execute_posted = protocol_enqueue_foreground_task(settings.tool_change.mode == ToolChange_SemiAutomatic ? execute_probe : execute_restore, NULL);
+                execute_posted = protocol_enqueue_foreground_task(
+                (settings.tool_change.mode == ToolChange_SemiAutomatic || 
+                settings.tool_change.mode == ToolChange_FastSemiAutomatic) 
+                ? execute_probe 
+                : execute_restore, 
+                NULL);
             else
                 protocol_enqueue_foreground_task(execute_warning, NULL);
         }
@@ -345,7 +355,7 @@ static status_code_t tool_change (parser_state_t *parser_state)
         return Status_OK;
 
 #if COMPATIBILITY_LEVEL > 1
-    if(settings.tool_change.mode == ToolChange_Manual_G59_3 || settings.tool_change.mode == ToolChange_SemiAutomatic)
+    if(settings.tool_change.mode == ToolChange_Manual_G59_3 || settings.tool_change.mode == ToolChange_SemiAutomatic || settings.tool_change.mode == ToolChange_FastSemiAutomatic)
         return Status_GcodeUnsupportedCommand;
 #endif
 
@@ -370,10 +380,12 @@ static status_code_t tool_change (parser_state_t *parser_state)
     if((sys.homed.mask & homed_req) != homed_req)
         return Status_HomingRequired;
 
-    if(settings.tool_change.mode != ToolChange_SemiAutomatic)
+    if(settings.tool_change.mode != ToolChange_SemiAutomatic && 
+        settings.tool_change.mode != ToolChange_FastSemiAutomatic)
         grbl.on_probe_completed = on_probe_completed;
 
-    block_cycle_start = settings.tool_change.mode != ToolChange_SemiAutomatic;
+    block_cycle_start = (settings.tool_change.mode != ToolChange_SemiAutomatic && 
+                         settings.tool_change.mode != ToolChange_FastSemiAutomatic);
 
     // Stop spindle and coolant.
     spindle_all_off();
@@ -383,7 +395,8 @@ static status_code_t tool_change (parser_state_t *parser_state)
     probe_toolsetter = grbl.on_probe_toolsetter != NULL &&
                        (settings.tool_change.mode == ToolChange_Manual ||
                          settings.tool_change.mode == ToolChange_Manual_G59_3 ||
-                          settings.tool_change.mode == ToolChange_SemiAutomatic);
+                          settings.tool_change.mode == ToolChange_SemiAutomatic ||
+                           settings.tool_change.mode == ToolChange_FastSemiAutomatic);
 
     // Save current position.
     system_convert_array_steps_to_mpos(previous.values, sys.position);
