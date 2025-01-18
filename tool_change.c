@@ -234,15 +234,14 @@ static void execute_probe (void *data)
         {
             system_convert_array_steps_to_mpos(target.values, sys.probe_position);
 
-        #ifdef ALTERNATE_TOOL_PROBE
+        if(settings.tool_change.mode == ToolChange_FastSemiAutomatic){
 
-        // Retract slowly until contact lost.
-        plan_data.feed_rate = settings.tool_change.feed_rate;
-        target.values[plane.axis_linear] += TOOL_CHANGE_PROBE_RETRACT_DISTANCE;
-        flags.probe_is_away = true;
-        ok = mc_probe_cycle(target.values, &plan_data, flags) == GCProbe_Found;
-
-        #else
+            // Retract slowly until contact lost.
+            plan_data.feed_rate = settings.tool_change.feed_rate;
+            target.values[plane.axis_linear] += TOOL_CHANGE_PROBE_RETRACT_DISTANCE;
+            flags.probe_is_away = true;
+            ok = mc_probe_cycle(target.values, &plan_data, flags) == GCProbe_Found;
+        } else {
 
             // Retract a bit and perform slow probe.
             plan_data.feed_rate = settings.tool_change.pulloff_rate;
@@ -253,7 +252,6 @@ static void execute_probe (void *data)
                 ok = mc_probe_cycle(target.values, &plan_data, flags) == GCProbe_Found;
             }
         }
-        #endif
     }
 
         if(ok) {
