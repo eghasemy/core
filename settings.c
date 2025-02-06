@@ -110,6 +110,11 @@ PROGMEM const settings_t defaults = {
     .steppers.is_rotary.mask = (DEFAULT_AXIS_ROTATIONAL_MASK & AXES_BITMASK) & 0b11111000,
     .steppers.rotary_wrap.mask = (DEFAULT_AXIS_ROTARY_WRAP_MASK & AXES_BITMASK) & 0b11111000,
 #endif
+    .motor_warning_enable.mask = DEFAULT_MOTOR_WARNING_SIGNALS_ENABLE,
+    .motor_warning_invert.mask = DEFAULT_MOTOR_WARNING_SIGNALS_INVERT,
+    .motor_fault_enable.mask = DEFAULT_MOTOR_FAULT_SIGNALS_ENABLE,
+    .motor_fault_invert.mask = DEFAULT_MOTOR_FAULT_SIGNALS_INVERT,
+
 #if DEFAULT_HOMING_ENABLE
     .homing.flags.enabled = DEFAULT_HOMING_ENABLE,
     .homing.flags.init_lock = DEFAULT_HOMING_INIT_LOCK,
@@ -449,6 +454,9 @@ static char axis_steps[9] = "step/mm";
 static struct {
     bool valid;
     float acceleration[N_AXIS];
+#if ENABLE_JERK_ACCELERATION
+    float jerk[N_AXIS];
+#endif
 } override_backup = { .valid = false };
 
 static void save_override_backup (void)
@@ -458,6 +466,9 @@ static void save_override_backup (void)
     do {
         idx--;
         override_backup.acceleration[idx] = settings.axis[idx].acceleration;
+#if ENABLE_JERK_ACCELERATION
+        override_backup.jerk[idx] = settings.axis[idx].jerk;
+#endif
     } while(idx);
 
     override_backup.valid = true;
@@ -470,6 +481,9 @@ static void restore_override_backup (void)
     if(override_backup.valid) do {
         idx--;
         settings.axis[idx].acceleration = override_backup.acceleration[idx];
+#if ENABLE_JERK_ACCELERATION
+        settings.axis[idx].jerk = override_backup.jerk[idx];
+#endif
     } while(idx);
 }
 
@@ -493,6 +507,31 @@ bool settings_override_acceleration (uint8_t axis, float acceleration)
 
     return true;
 }
+
+#if ENABLE_JERK_ACCELERATION
+
+// Temporarily override jerk, if 0 restore to setting value.
+// Note: only allowed when current state is idle.
+bool settings_override_jerk (uint8_t axis, float jerk)
+{
+    sys_state_t state = state_get();
+
+    if(!(state == STATE_IDLE || (state & (STATE_HOMING|STATE_ALARM))))
+        return false;
+
+    if(jerk <= 0.0f) {
+        if(override_backup.valid)
+            settings.axis[axis].jerk = override_backup.jerk[axis];
+    } else {
+        if(!override_backup.valid)
+            save_override_backup();
+        settings.axis[axis].jerk = jerk * 60.0f * 60.0f * 60.0f; // Limit max to setting value?
+    }
+
+    return true;
+}
+
+#endif // ENABLE_JERK_ACCELERATION
 
 // ---
 
@@ -1200,7 +1239,7 @@ static status_code_t set_axis_setting (setting_id_t setting, float value)
 
 #if ENABLE_JERK_ACCELERATION      
         case Setting_AxisJerk:
-                settings.axis[idx].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min^3 for internal use.
+            settings.axis[idx].jerk = override_backup.jerk[idx] = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min^3 for internal use.
             break;
 #endif            
 
@@ -1774,6 +1813,15 @@ static bool is_setting_available (const setting_detail_t *setting, uint_fast16_t
             available = SLEEP_DURATION > 0.0f;
             break;
 
+        case Setting_ToolChangeMode:
+        case Setting_ToolChangeProbingDistance:
+        case Setting_ToolChangeFeedRate:
+        case Setting_ToolChangeSeekRate:
+        case Setting_ToolChangePulloffRate:
+        case Setting_ToolChangeRestorePosition:
+            available = !hal.driver_cap.atc;
+            break;
+
         case Setting_DualAxisLengthFailPercent:
         case Setting_DualAxisLengthFailMin:
         case Setting_DualAxisLengthFailMax:
@@ -1843,7 +1891,17 @@ static bool is_setting_available (const setting_detail_t *setting, uint_fast16_t
             break;
 
         case Setting_CoolantOnDelay:
-            available = hal.coolant_cap.mask;
+            available = hal.coolant_cap.mask != 0;
+            break;
+
+        case Setting_MotorWarningsEnable:
+        case Setting_MotorWarningsInvert:
+            available = hal.motor_warning_cap.a.mask != 0;
+            break;
+
+        case Setting_MotorFaultsEnable:
+        case Setting_MotorFaultsInvert:
+            available = hal.motor_fault_cap.a.mask != 0;
             break;
 
         default:
@@ -2074,7 +2132,11 @@ PROGMEM static const setting_detail_t setting_detail[] = {
      { Setting_SpindleOffDelay, Group_Spindle, "Spindle off delay", "s", Format_Decimal, "#0.0", "0.5", "20", Setting_IsExtendedFn, set_float, get_float, is_setting_available, { .allow_null = On } },
      { Setting_FSOptions, Group_General, "File systems options", NULL, Format_Bitfield, fs_options, NULL, NULL, Setting_IsExtended, &settings.fs_options.mask, NULL, is_setting_available },
      { Setting_HomePinsInvertMask, Group_Limits, "Invert home inputs", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.home_invert.mask, NULL, is_setting_available },
-     { Setting_CoolantOnDelay, Group_Coolant, "Coolant on delay", "s", Format_Decimal, "#0.0", "0.5", "20", Setting_IsExtendedFn, set_float, get_float, is_setting_available, { .allow_null = On } }
+     { Setting_CoolantOnDelay, Group_Coolant, "Coolant on delay", "s", Format_Decimal, "#0.0", "0.5", "20", Setting_IsExtendedFn, set_float, get_float, is_setting_available, { .allow_null = On } },
+     { Setting_MotorWarningsEnable, Group_Stepper, "Motor warning inputs enable", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_warning_enable, NULL, is_setting_available },
+     { Setting_MotorWarningsInvert, Group_Stepper, "Invert motor warning inputs", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_warning_invert, NULL, is_setting_available },
+     { Setting_MotorFaultsEnable, Group_Stepper, "Motor fault inputs enable", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_fault_enable, NULL, is_setting_available },
+     { Setting_MotorFaultsInvert, Group_Stepper, "Invert motor fault inputs", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_fault_invert, NULL, is_setting_available }
 };
 
 #ifndef NO_SETTINGS_DESCRIPTIONS
@@ -2273,6 +2335,12 @@ PROGMEM static const setting_descr_t setting_descr[] = {
     { Setting_FSOptions, "Auto mount SD card on startup." },
     { Setting_HomePinsInvertMask, "Inverts the axis home input signals." },
     { Setting_CoolantOnDelay, "Delay to allow coolant to start. 0 or 0.5 - 20s" }
+/*
+    { Setting_MotorWarningsEnable, "Motor warning enable" },
+    { Setting_MotorWarningsInvert, "Invert motor warning inputs" },
+    { Setting_MotorFaultsEnable, "Motor fault enable" },
+    { Setting_MotorFaultsInvert, "Invert motor fault inputs" }
+*/
 };
 
 #endif
@@ -2522,11 +2590,12 @@ void settings_restore (settings_restore_t restore)
     if(restore.parameters) {
         float coord_data[N_AXIS];
         memset(coord_data, 0, sizeof(coord_data));
+#if COMPATIBILITY_LEVEL <= 1
         for(idx = 0; idx <= N_WorkCoordinateSystems; idx++) {
             if(idx < CoordinateSystem_G59_1 || idx > CoordinateSystem_G59_3 || bit_isfalse(settings.offset_lock.mask, bit(idx - CoordinateSystem_G59_1)))
                 settings_write_coord_data((coord_system_id_t)idx, &coord_data);
         }
-
+#endif
         settings_write_coord_data(CoordinateSystem_G92, &coord_data); // Clear G92 offsets
 
 #if N_TOOLS
@@ -3291,7 +3360,7 @@ void settings_init (void)
     if(!settings.flags.settings_downgrade && settings.version.build != (GRBL_BUILD - 20000000UL)) {
 
         if(settings.version.build <= 250102) {
-            settings.spindle.on_delay = settings.safety_door.spindle_on_delay * 1000.0f;
+//            settings.spindle.on_delay = settings.safety_door.spindle_on_delay * 1000.0f;
             settings.coolant.on_delay = settings.safety_door.coolant_on_delay * 1000.0f;
             if((changed.spindle = settings.spindle.at_speed_tolerance != settings.pwm_spindle.at_speed_tolerance)) {
                 settings.spindle.at_speed_tolerance = settings.pwm_spindle.at_speed_tolerance;

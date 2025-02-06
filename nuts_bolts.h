@@ -149,11 +149,14 @@ typedef union {
 #pragma pack(push, 1)
 
 //! \brief Limit switches struct, consists of four packed axes_signals_t structs in 32 bits.
-typedef struct {
-    axes_signals_t min;     //!< Min limit switches status, required.
-    axes_signals_t max;     //!< Max limit switches status, optional.
-    axes_signals_t min2;    //!< Secondary min limit switch(es) status, required for auto squaring enabled axes.
-    axes_signals_t max2;    //!< Secondary max limit switches status, optional (of no practical use?).
+typedef union {
+    uint32_t bits;
+    struct {
+        axes_signals_t min;     //!< Min limit switches status, required.
+        axes_signals_t max;     //!< Max limit switches status, optional.
+        axes_signals_t min2;    //!< Secondary min limit switch(es) status, required for auto squaring enabled axes.
+        axes_signals_t max2;    //!< Secondary max limit switches status, optional (of no practical use?).
+    };
 } limit_signals_t;
 
 //! \brief Home switches struct, consists of two packed axes_signals_t structs.
@@ -161,6 +164,18 @@ typedef struct {
     axes_signals_t a;       //!< Primary home switches status, optional. Limit signals are used for homing if not available.
     axes_signals_t b;       //!< Secondary home switch(es) status, required for auto squaring enabled axes if primary switches are available.
 } home_signals_t;
+
+//! \brief Stepper driver states struct.
+typedef union {
+    uint16_t state;
+    home_signals_t details; // Stepper driver signals states.
+} stepper_state_t;
+
+//! \brief // Stepper driver warning and fault signal states, consists of two packed stepper_state_t structs in 32 bits.
+typedef struct {
+    stepper_state_t warning; //!< Stepper drivers warning states.
+    stepper_state_t fault;   //!< Stepper drivers fault states.
+} stepper_status_t;
 
 #pragma pack(pop)
 
@@ -198,8 +213,8 @@ typedef enum {
 #define bit_false(x, mask) (x) &= ~(mask)
 #define BIT_SET(x, bit, v) { if (v) { x |= (bit); } else { x &= ~(bit); } }
 
-#define bit_istrue(x, mask) ((x & (mask)) != 0)
-#define bit_isfalse(x, mask) ((x & (mask)) == 0)
+#define bit_istrue(x, mask) (((x) & (mask)) != 0)
+#define bit_isfalse(x, mask) (((x) & (mask)) == 0)
 
 // Converts an uint32 variable to string.
 char *uitoa (uint32_t n);

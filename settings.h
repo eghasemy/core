@@ -453,6 +453,7 @@ typedef enum {
     Setting_Reserved672 = 672,
     Setting_CoolantOnDelay = 673,
     Setting_THC_Options = 674,
+    Setting_MacroATC_Options = 675,
 
     Setting_SpindleInvertMask1 = 716,
 
@@ -469,6 +470,11 @@ typedef enum {
     Setting_LinearSpindle1Piece2 = 738,
     Setting_LinearSpindle1Piece3 = 739,
     Setting_LinearSpindle1Piece4 = 740,
+
+    Setting_MotorWarningsEnable = 742,
+    Setting_MotorWarningsInvert = 743,
+    Setting_MotorFaultsEnable = 744,
+    Setting_MotorFaultsInvert = 745,
 
     Setting_Action0    = 750,
     Setting_ActionBase = Setting_Action0,
@@ -813,6 +819,15 @@ typedef struct {
 } tool_change_settings_t;
 
 typedef union {
+    uint8_t value;
+    struct {
+        uint8_t execute_m6t0       :1,
+                random_toolchanger :1,
+                unassigned         :6;
+    };
+} macro_atc_flags_t;
+
+typedef union {
     uint32_t value;
     struct {
         uint32_t id    :8;  // = SETTINGS_VERSION, incremented on structure changes.
@@ -854,7 +869,12 @@ typedef struct {
     position_pid_t position;    // Used for synchronized motion
     ioport_signals_t ioport;
     homing_settings_t homing;
-    char reserved[24];          // Reserved For future expansion
+    axes_signals_t motor_warning_enable;
+    axes_signals_t motor_warning_invert;
+    axes_signals_t motor_fault_enable;
+    axes_signals_t motor_fault_invert;
+    macro_atc_flags_t macro_atc_flags;
+    char reserved[19];          // Reserved For future expansion
 } settings_t;
 
 typedef enum {
@@ -1084,6 +1104,11 @@ bool settings_read_coord_data(coord_system_id_t id, float (*coord_data)[N_AXIS])
 
 // Temporarily override acceleration, if 0 restore to configured setting value
 bool settings_override_acceleration (uint8_t axis, float acceleration);
+
+#if ENABLE_JERK_ACCELERATION
+// Temporarily override jerk, if 0 restore to configured setting value.
+bool settings_override_jerk (uint8_t axis, float jerk);
+#endif
 
 void settings_register (setting_details_t *details);
 setting_details_t *settings_get_details (void);

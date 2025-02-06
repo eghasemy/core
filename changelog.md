@@ -1,5 +1,217 @@
 ## grblHAL changelog
 
+<a name="20250205">20250205
+
+Drivers:
+
+* iMRX1062, SAM3X8E, STM32F4xx: fixed some typos.
+
+---
+
+<a name="20250204">Build 20250204
+
+Core:
+
+* Changed limits struct to union and added field for access to all pin states in one statement. No functional change.
+
+Plugins:
+
+* Motors: refactored StallGuard homing code and fixed M914 validation bug. Added experimental SR-latch for catching diag output pulses by interrupt.
+
+---
+
+<a name="20250201">Build 20250201
+
+Core:
+
+* Fixed issue where aux output commands syncronized with motion was sometimes lost.
+
+* Added spindle capability flag for plasma torch and disable of spindle spin up/down delay if set.
+
+Drivers:
+
+* iMXRT1062, STM32F4xx and STM32F7xx: fixed step injection issue where stepper spindle did not release control for normal axis motion when off. Ref. issue [#36](https://github.com/dresco/STM32H7xx/issues/36).
+
+* iMXRT1062: fixed regression in handling of MCP3221 ADC converter. Ref. issue [#92](https://github.com/grblHAL/iMXRT1062/issues/92).
+
+* STM32F4xx: fixed incorrect order of some aux outputs in SuperLongBoard map.
+
+Plugins:
+
+* Plasma: more improvements - better handling of port assignments, THC M-code control and new mode for arc ok signal only \(no THC control\).
+
+---
+
+<a name="20250131">Build 20250131
+
+Core:
+
+* Fixed some typos causing compilation failure in some configurations.
+
+* No longer copies spindle on delay from door setting (`$392`) to the new general setting (`$340`) on update from pre 20250103 builds.
+
+* Fixed missed code change when general spindle on delay was implemented causing the delay to be inserted on a simple RPM change with the `S` word.
+
+Drivers:
+
+* STM32F4xx: allow `$DFU` command if critical alarm is active. Fixed LongBoard32 map for incorrect motor -> axis mapping when four axes where configured.
+
+---
+
+<a name="20250129">Build 20250129
+
+Core:
+
+* Added API call for overriding jerk settings, symbol for `M201.3` gcode.
+
+Drivers:
+
+* ESP32, STM32F4xx and STM32F7xx: added workaround for FatFs corrupting allocated memory after a failed mount attempt.
+
+Plugins:
+
+* SD card: added workaround for FatFs corrupting allocated memory after a failed mount attempt. Ref. RP2040 issue [#112](https://github.com/grblHAL/RP2040/issues/112).
+
+* OpenPNP: added tentative support for setting jerk with `M201.3`. Not tested!
+
+---
+
+<a name="20250128">Build 20250128
+
+Core:
+
+* Added setting definition for macro ATC options. Now hides core toolchange settings when macro based ATC is active to avoid confusion.
+
+* "hardened" parser tool change code a bit.
+
+Drivers:
+
+* ESP32: fixed issue with Trinamic SPI code for "chained" drivers. Only bench tested with single driver. Ref. issue [#666](https://github.com/grblHAL/core/issues/666).
+
+* RP2040: updated to SDK 2.1.0 for Pico2 W support.
+
+Plugins:
+
+* SD card: "hardened" code, now reports error 62 if mounted card is removed without unmounting and a file listing is asked for.  
+Added mounted state change element to the real-time report report: `|SD:0` when not mounted, `|SD:1` when mounted,
+`|SD:2` when not mounted and card detect is available and `|SD:3` when mounted automatically on card detected event.
+ 
+* SD card, macros: added setting `$675` for macro ATC options, currently one flag to enable execution of `M6T0` to unload tool.
+This setting was added to keep backwards compatibility, only enable if the tool change macro can handle it.
+
+Templates:
+
+* Persistent tool: did not set parser state correctly causing `M61Q0` to be ignored after restart.
+
+---
+
+<a name="20250124">Build 20250124
+
+Core:
+
+* Fixed `$help` topic search failing if target contains spaces. Ref. issue [#664](https://github.com/grblHAL/core/issues/664).
+
+* Improved default serial port mapping when both MPG mode and keypad plugin are enabled to ensure the port is shared.
+
+* Delayed status report output on MPG mode change a few milliseconds to avoid awakening the ESP32 guru that sometimes reboots the controller.
+
+Drivers:
+
+* iMXRT1062: harmonized code guard for enabling MCP3221 code with other drivers. Ref. discussion [#645](https://github.com/grblHAL/core/discussions/645#discussioncomment-11942596).
+
+* MSP432P401R: fixed Trinamic I2C interface bridge, added support for one auxiliary PWM output.
+
+* STM32F4xx: fixed typo and added PWM port to BTT SKR 2 map. Ref. issue [#190](https://github.com/grblHAL/STM32F4xx/issues/190#issuecomment-2563926583).  
+Some changes for the MKS Robin Nano board map. Ref. issue [#213](https://github.com/grblHAL/STM32F4xx/issues/213).
+
+Plugins:
+
+* Misc, RGB LED strips: fixed regression.
+
+* Keypad: added better description for serial port pins shared with MPG. This will change the `$PIN` output to be more precise sometime in the future.
+
+* Motors: fixed the Trinamic I2C interface. AFAIK noone besides me uses this...
+
+* Trinamic: fixed regression in the TMC1230 driver.
+
+---
+
+<a name="20250122">20250122
+
+Core:
+
+* Guarded new code that caused compilation failure if `COMPATIBILITY_LEVEL` was set > 1.
+
+Drivers:
+
+* iMXRT1062: moved MCP3221 I2C ADC code to its correct home, fixes issue with it sometimes not beeing available for claiming by plugins.
+
+* RP2040: fixed generic map.Ref. issue [#108](https://github.com/grblHAL/RP2040/discussions/108).
+
+* STM32F1xx: fixed I2C strobe handling used by keypad plugin.
+
+* STM32F7xx: fix for error beeing reported when setting RTC clock.
+
+Plugins:
+
+* Networking: updated WizNet code to support lwIP version >= 2.2.0 for mDNS. Ref. issue [#109](https://github.com/grblHAL/RP2040/issues/109).
+
+* Plasma: fixed regression preventing visibility of some settings. Ref. issue [#17](https://github.com/grblHAL/Plugin_plasma/issues/17).
+
+---
+
+<a name="20250120">Build 20250120
+
+Core:
+
+Added `$SDS` command for outputting **S**tepper **D**river **S**tatus.
+If not available an error is returned, if no driver errors/warnings then just `ok` else one or two status lines followed by `ok`:   
+
+`[MOTORWARNING:<axisletters>{,<axisletters>}]` and/or  
+`[MOTORFAULT:<axisletters>{,<axisletters>}]`  
+
+The first set of `<axisletters>` is for the primary drivers and the second for any secondary \(ganged\) drivers.
+
+Drivers:
+
+* ESP32: fixed board map for Fysetc E4. Ref discussion [#136](https://github.com/grblHAL/ESP32/discussions/136).
+
+* STM32F4xx: added tentative support for stepper driver status data for SuperLongBoard EXT, untested!
+
+Plugins:
+
+* SD card: changed status/error code retured when attempting to access card when no card is mounted to `64`.
+
+* Trinamic: added initial support for stepper driver status data that can be used for the `$SDS` command.  
+Currently fault status is returned for failure to initialize drivers and warning for overtemperature pre warning \(OTPW\).  
+OTPW status is only checked for on `M122` report commands or if driver polling is enabled.  
+Changed initialization sequence to check all drivers instead of exiting on first failure in order to provide per driver data for `$SDS`.   
+Fixed copy/paste error for `M913` command. Ref. discussion [#107](https://github.com/grblHAL/ESP32/discussions/107#discussioncomment-11886197).
+
+---
+
+<a name="20250118">Build 20250118
+
+Core:
+
+* Added HAL support for stepper driver status signals \(warning and fault\) and new HAL entry point for querying/resetting driver status.
+
+* Added driver capability flags and settings, `$742` - `$745`, for enabling and inverting motor warning and fault input signals \(per axis\).
+
+* Improved jerk acceleration. Ref. PR [#660](https://github.com/grblHAL/core/pull/660).
+
+Plugins:
+
+* Trinamic: added up to 5 seconds startup delay to allow motor power to come up. Ref. issue [#19](https://github.com/grblHAL/Plugins_motor/issues/19).  
+Partially implemended new HAL entry point for querying/resetting driver status.
+
+Drivers:
+
+* STM32F4xx: added driver support for per motor stepper driver fault signals, updated SuperLongBoard EXT map/board specific code to match.  
+Fixed issue with homing/hard limits alarm affecting SuperLongBoards.
+
+---
+
 <a name="20250116">Build 20250116
 
 Core:
@@ -11,7 +223,7 @@ Core:
  
 Drivers:
 
-* STM32F4xx: fixed random freezes when WizNet plugin is enabled for ethernet. Ref. issue [#208](https://github.com/grblHAL/STM32F4xx/issues/208).
+* STM32F4xx: fixed random freezes when WizNet plugin is enabled for ethernet. Ref. issue [#208](https://github.com/grblHAL/STM32F4xx/issues/208).  
 Added tentative board map for Sienci SuperLongBoard with external drivers \(SLB EXT\) and added support for toolsetter state for both SLB and SLB EXT.
 
 Plugins:
@@ -296,8 +508,6 @@ Plugins:
 * WebUI, Networking and SD card: updated to handle littlefs mounted as root filesystem.
 
 ---
-
-## grblHAL changelog
 
 <a name="20241217">Build 20241217
 

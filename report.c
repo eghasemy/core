@@ -354,16 +354,19 @@ static bool report_group_settings (const setting_group_detail_t *groups, const u
 {
     bool found = false;
     uint_fast8_t idx;
-    char c, *s, group[26];
+    char c, *s1, *s2, group[26];
 
     for(idx = 0; idx < n_groups; idx++) {
 
-        s = group;
+        s1 = s2 = group;
         strncpy(group, groups[idx].name, sizeof(group) - 1);
 
-        // Uppercase group name
-        while((c = *s))
-            *s++ = CAPS(c);
+        // Remove spaces and uppercase group name
+        while((c = *s1++)) {
+            if(c != ' ')
+                *s2++ = CAPS(c);
+        }
+        *s2 = '\0';
 
         if((found = matchhere(args, group))) {
             hal.stream.write(ASCII_EOL "---- ");
@@ -379,10 +382,6 @@ static bool report_group_settings (const setting_group_detail_t *groups, const u
 
 status_code_t report_help (char *args)
 {
-    // Strip leading spaces
-    while(*args == ' ')
-        args++;
-
     if(*args == '\0') {
 
         hal.stream.write("Help topics:" ASCII_EOL);
@@ -2622,6 +2621,39 @@ status_code_t report_spindles (bool machine_readable)
         hal.stream.write("No spindles registered." ASCII_EOL);
 
     return Status_OK;
+}
+
+status_code_t report_stepper_status (sys_state_t state, char *args)
+{
+    if(hal.stepper.status) {
+
+        char *append = buf;
+        stepper_status_t status = hal.stepper.status(false);
+
+        if(status.warning.state) {
+            hal.stream.write("[MOTORWARNING:");
+            append = axis_signals_tostring(buf, status.warning.details.a);
+            if(status.warning.details.b.bits) {
+                *append++ = ',';
+                axis_signals_tostring(append, status.warning.details.b);
+            }
+            hal.stream.write(buf);
+            hal.stream.write("]" ASCII_EOL);
+        }
+
+        if(status.fault.state) {
+            hal.stream.write("[MOTORFAULT:");
+            append = axis_signals_tostring(buf, status.fault.details.a);
+            if(status.fault.details.b.bits) {
+                *append++ = ',';
+                axis_signals_tostring(append, status.fault.details.b);
+            }
+            hal.stream.write(buf);
+            hal.stream.write("]" ASCII_EOL);
+        }
+    }
+
+    return hal.stepper.status ? Status_OK : Status_InvalidStatement;
 }
 
 void report_pid_log (void)

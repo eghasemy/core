@@ -3,7 +3,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2017-2024 Terje Io
+  Copyright (c) 2017-2025 Terje Io
   Copyright (c) 2011-2016 Sungeun K. Jeon for Gnea Research LLC
   Copyright (c) 2009-2011 Simen Svale Skogsrud
   Copyright (c) 2011 Jens Geisler
@@ -194,13 +194,9 @@ inline static void plan_cleanup (plan_block_t *block)
         block->message = NULL;
     }
 
-    while(block->output_commands) {
-        output_command_t *next = block->output_commands->next;
-        free(block->output_commands);
-        block->output_commands = next;
-    }
+    if(block->output_commands)
+        gc_clear_output_commands(block->output_commands);
 }
-
 
 inline static void plan_reset_buffer (void)
 {
@@ -234,10 +230,10 @@ bool plan_reset (void)
             else
                 break;
         }
-    }
 
-    if(block_buffer_size != settings.planner_buffer_blocks)
-        protocol_enqueue_foreground_task(report_plain, "Planner buffer size was reduced!");
+        if(block_buffer_size != settings.planner_buffer_blocks)
+            protocol_enqueue_foreground_task(report_plain, "Planner buffer size was reduced!");
+    }
 
     if(block_buffer == NULL)
         return false;
@@ -468,13 +464,12 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
         block->spindle.css->delta_rpm = block->spindle.css->target_rpm - block->spindle.rpm;
     }
 
-    pl_data->message = NULL;         // Indicate message is already queued for display on execution
-    pl_data->output_commands = NULL; // Indicate commands are already queued for execution
-
     // Bail if this is a zero-length block. Highly unlikely to occur.
-    if(block->step_event_count == 0) {
-        plan_cleanup(block); // TODO: output message and execute output_commands?
+    if(block->step_event_count == 0)
         return false;
+    else {
+        pl_data->message = NULL;         // Indicate message is already queued for display on execution
+        pl_data->output_commands = NULL; // Indicate commands are already queued for execution
     }
 
 #if N_AXIS > 3  && ROTARY_FIX
@@ -549,9 +544,19 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
 #if ENABLE_JERK_ACCELERATION
     // Calculate effective acceleration over block. Since jerk acceleration takes longer to execute due to ramp up and 
     // ramp down of the acceleration at the start and end of a ramp we need to adjust the acceleration value the planner 
-    // uses so it still calculates reasonable entry and exit speeds. We do this by adding 2x the time it takes to reach 
-    // full acceleration to the trapezoidal acceleration time and dividing the programmed rate by the value obtained.
-    block->acceleration = block->programmed_rate / ((block->programmed_rate / block->max_acceleration) + 2.0f * (block->max_acceleration / block->jerk));
+    // uses so it still calculates reasonable entry speeds, exit speeds and times to decelerate/accelerate. 
+    // 2 general cases emerge: 
+    //     -slow speed regime: uncomplete jerk ramp (max_acceleration is not reached)
+    //     -high speed regime: complete jerk ramp + time at max_axcel to reach desired programmed_rates
+    // Profiles are calculated as symmetrical (calculate to 1/2 programmed rate, then double)
+    float time_to_max_accel = block->max_acceleration / block->jerk;    // unit: min - time it takes to reach max acceleration 
+    float speed_after_jerkramp = 0.5f * block->jerk * time_to_max_accel * time_to_max_accel;   // unit: mm / min - velocity after one completed jerk ramp up - Vt = V0 + A0T + 1/2 jerk*T
+    if(0.5f * block->programmed_rate > speed_after_jerkramp)
+        // Profile time = 2x (1 complete jerk ramp + additional time at max_accel to reach desired speed)
+        block->acceleration = block->programmed_rate / (2.0f *(time_to_max_accel + (0.5f * block->programmed_rate - speed_after_jerkramp) / block->max_acceleration));     
+    else 
+        // Max Accel is not reached. time_to_halfvelocity = sqrt( 0.5 programmed_rate * 2 / jerk) -> derived from Vt = V0 + A0T + 1/2 jerk*T (v0 and a0t == 0 in this case)
+        block->acceleration = block->programmed_rate / (2.0f * sqrt(block->programmed_rate / block->jerk));  
 #endif
 
     // TODO: Need to check this method handling zero junction speeds when starting from rest.

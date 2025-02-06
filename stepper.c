@@ -3,7 +3,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2016-2024 Terje Io
+  Copyright (c) 2016-2025 Terje Io
   Copyright (c) 2011-2016 Sungeun K. Jeon for Gnea Research LLC
   Copyright (c) 2009-2011 Simen Svale Skogsrud
 
@@ -94,6 +94,11 @@ static float cycles_per_min;
 // Step segment ring buffer pointers
 static volatile segment_t *segment_buffer_tail;
 static segment_t *segment_buffer_head, *segment_next_head;
+
+#if ENABLE_JERK_ACCELERATION
+// Static storage for acceleration value of last computed segment.   
+static float last_segment_accel = 0.0f;
+#endif
 
 // Pointers for the step segment being prepped from the planner buffer. Accessed only by the
 // main program. Pointers may be planning segments or planner blocks ahead of what being executed.
@@ -320,7 +325,6 @@ ISR_CODE void ISR_FUNC(stepper_driver_interrupt_handler)(void)
                 // Execute output commands to be synchronized with motion
                 while(st.exec_block->output_commands) {
                     output_command_t *cmd = st.exec_block->output_commands;
-                    cmd->is_executed = true;
                     if(cmd->is_digital)
                         hal.port.digital_out(cmd->port, cmd->value != 0.0f);
                     else
@@ -330,7 +334,7 @@ ISR_CODE void ISR_FUNC(stepper_driver_interrupt_handler)(void)
 
                 // Enqueue any message to be printed (by foreground process)
                 if(st.exec_block->message) {
-                    if(!protocol_enqueue_foreground_task((foreground_task_ptr)gc_output_message, st.exec_block->message))
+                    if(!task_add_immediate((foreground_task_ptr)gc_output_message, st.exec_block->message))
                         free(st.exec_block->message);
                     st.exec_block->message = NULL;
                 }
@@ -866,13 +870,14 @@ void st_prep_buffer (void)
         float dt_max = DT_SEGMENT; // Maximum segment time
         float dt = 0.0f; // Initialize segment time
         float time_var = dt_max; // Time worker variable
-#if ENABLE_JERK_ACCELERATION   
-        float last_segment_accel = 0.0f; // Acceleration value of last computed segment. Initialize as 0.0
-#endif
         float mm_var; // mm - Distance worker variable
         float speed_var; // Speed worker variable
         float mm_remaining = pl_block->millimeters; // New segment distance from end of block.
         float minimum_mm = mm_remaining - prep.req_mm_increment; // Guarantee at least one step.
+#if ENABLE_JERK_ACCELERATION
+        float time_to_jerk;     // time needed for jerk ramp
+        float jerk_rampdown;    // calculated startpoint of jerk rampdown
+#endif
 
         if (minimum_mm < 0.0f)
             minimum_mm = 0.0f;
@@ -897,15 +902,17 @@ void st_prep_buffer (void)
 
                 case Ramp_Accel:
                     // NOTE: Acceleration ramp only computes during first do-while loop.
-#if ENABLE_JERK_ACCELERATION   
-                    if (((mm_remaining - prep.accelerate_until) / (prep.current_speed + 0.001f)) <= (last_segment_accel / pl_block->jerk)) { 
-                        //+0.001f to avoid divide by 0 speed, minor effect on jerk ramp (+1.0f was too large for low jerk values)
-                        // Check if we are on ramp up or ramp down. Ramp down if time to end of acceleration is less than time needed to reach 0 acceleration.
+#if ENABLE_JERK_ACCELERATION
+                    time_to_jerk = last_segment_accel / pl_block->jerk;
+                    jerk_rampdown =time_to_jerk * (prep.current_speed + (0.5f * last_segment_accel * time_to_jerk) + (pl_block->jerk * time_to_jerk * time_to_jerk) / 6.0f);  //Distance to 0 acceleration at speed (mm == V(0)*T + 1/2 A0*T^2 + 1/6 J*T^3)
+                    if ((mm_remaining - prep.accelerate_until) > jerk_rampdown) {
+                        //+1.0f to avoid divide by 0 speed, minor effect on jerk ramp
+                        // Check if we are on ramp up or ramp down. Ramp down if distance to end of acceleration is less than distance needed to reach 0 acceleration.
                         // Then limit acceleration change by jerk up to max acceleration and update for next segment.
-                        // Minimum acceleration jerk per time_var to ensure acceleartion completes. Acceleration change at end of ramp is in acceptable jerk range.
-                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var); 
-                    } else {
+                        // Minimum acceleration jerk per time_var to ensure acceleration completes. Acceleration change at end of ramp is in acceptable jerk range.
                         last_segment_accel = min(last_segment_accel + pl_block->jerk * time_var, pl_block->max_acceleration); 
+                    } else {
+                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var);  
                     }
                     speed_var = last_segment_accel * time_var;
 #else
@@ -942,14 +949,15 @@ void st_prep_buffer (void)
                 default: // case Ramp_Decel:
                     // NOTE: mm_var used as a misc worker variable to prevent errors when near zero speed.
 #if ENABLE_JERK_ACCELERATION   
-                    if ((mm_remaining / (prep.current_speed + 0.001f)) <= (last_segment_accel / pl_block->jerk)) { 
-                        //+0.001f to avoid divide by 0 speed, minor effect on jerk ramp (+1.0f was too large for low jerk values)
-                        // Check if we are on ramp up or ramp down. Ramp down if time to end of deceleration is less than time needed to reach 0 acceleration.
+                    time_to_jerk = last_segment_accel / pl_block->jerk;
+                    jerk_rampdown = prep.exit_speed + time_to_jerk * (last_segment_accel - (0.5f * pl_block->jerk * time_to_jerk)); // Speedpoint to start ramping down deceleration. (V = a * t - 1/2 j * t^2)
+                    if (prep.current_speed > jerk_rampdown) {
+                        // Check if we are on ramp up or ramp down. Ramp down if speed is less than speed needed for reaching 0 acceleration.
                         // Then limit acceleration change by jerk up to max acceleration and update for next segment.
-                        // Minimum acceleration of jerk per time_var to ensure acceleration completes. Acceleration change at end of ramp is in acceptable jerk range.
-                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var); 
-                    } else {
+                        // Minimum acceleration of jerk per time_var to ensure deceleration completes. Acceleration change at end of ramp is in acceptable jerk range.
                         last_segment_accel = min(last_segment_accel + pl_block->jerk * time_var, pl_block->max_acceleration); 
+                    } else {
+                        last_segment_accel = max(last_segment_accel - pl_block->jerk * time_var, pl_block->jerk * time_var);  
                     }
                     speed_var = last_segment_accel * time_var; // Used as delta speed (mm/min)
 #else
@@ -968,6 +976,9 @@ void st_prep_buffer (void)
                     time_var = 2.0f * (mm_remaining - prep.mm_complete) / (prep.current_speed + prep.exit_speed);
                     mm_remaining = prep.mm_complete;
                     prep.current_speed = prep.exit_speed;
+#if ENABLE_JERK_ACCELERATION
+                    last_segment_accel = 0.0f;  // reset acceleration variable to 0 for next accel ramp
+#endif
             }
 
             dt += time_var; // Add computed ramp time to total segment time.
