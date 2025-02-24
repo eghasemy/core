@@ -56,8 +56,8 @@ static void tc_on_homing_complete (axes_signals_t homing_cycle, bool success)
     if(on_homing_completed)
         on_homing_completed(homing_cycle, success);
 
-    if(settings.tool_change.mode != ToolChange_Disabled)
-        system_clear_tlo_reference(homing_cycle);
+    //if(settings.tool_change.mode != ToolChange_Disabled)
+        //system_clear_tlo_reference(homing_cycle);
 }
 
 // Set tool offset on successful $TPW probe, prompt for retry on failure.
