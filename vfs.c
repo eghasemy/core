@@ -502,6 +502,13 @@ char *vfs_getcwd (char *buf, size_t len)
     return buf ? buf : cwds;
 }
 
+int vfs_chmod (const char *filename, vfs_st_mode_t attr, vfs_st_mode_t mask)
+{
+    vfs_mount_t *mount = get_mount(filename);
+
+    return mount && mount->vfs->fchmod ? mount->vfs->fchmod(get_filename(mount, filename), attr, mask) : -1;
+}
+
 int vfs_stat (const char *filename, vfs_stat_t *st)
 {
     vfs_mount_t *mount = get_mount(filename);
@@ -569,6 +576,8 @@ bool vfs_mount (const char *path, const vfs_t *fs, vfs_st_mode_t mode)
         root.mode = mode;
     } else if((mount = (vfs_mount_t *)calloc(sizeof(vfs_mount_t), 1))) {
 
+        struct tm tm;
+
         strcpy(mount->path, path);
         if(mount->path[strlen(path) - 1] != '/')
             strcat(mount->path, "/");
@@ -576,9 +585,7 @@ bool vfs_mount (const char *path, const vfs_t *fs, vfs_st_mode_t mode)
         mount->vfs = fs;
         mount->mode = mode;
         mount->next = NULL;
-        if(hal.rtc.get_datetime) {
-            struct tm tm;
-            hal.rtc.get_datetime(&tm);
+        if(hal.rtc.get_datetime && hal.rtc.get_datetime(&tm)) {
 #ifdef ESP_PLATFORM
             mount->st_mtim = mktime(&tm);
 #else
@@ -598,7 +605,7 @@ bool vfs_mount (const char *path, const vfs_t *fs, vfs_st_mode_t mode)
         hal.rtc.get_datetime = vfs_get_time;
 
     if(fs && vfs.on_mount)
-        vfs.on_mount(path, fs);
+        vfs.on_mount(path, fs, mode);
 
     return fs != NULL;
 }

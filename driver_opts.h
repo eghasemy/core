@@ -137,11 +137,8 @@
 #endif
 #endif
 
-#if DISPLAY_ENABLE == 2
-#ifdef I2C_ENABLE
-#undef I2C_ENABLE
-#endif
-#define I2C_ENABLE 1
+#ifndef DISPLAY_ENABLE
+#define DISPLAY_ENABLE      0
 #endif
 
 #ifndef EEPROM_ENABLE
@@ -151,16 +148,20 @@
 #define EEPROM_IS_FRAM      0
 #endif
 
-#ifndef I2C_ENABLE
-#if EEPROM_ENABLE || KEYPAD_ENABLE == 1 || DISPLAY_ENABLE == 1 || DISPLAY_ENABLE == 2 || I2C_STROBE_ENABLE || (TRINAMIC_ENABLE && TRINAMIC_I2C)
-#define I2C_ENABLE 1
+#if EEPROM_ENABLE || KEYPAD_ENABLE == 1 || I2C_STROBE_ENABLE || (DISPLAY_ENABLE & DISPLAY_I2C) || (TRINAMIC_ENABLE && TRINAMIC_I2C)
+#if defined(I2C_ENABLE) && I2C_ENABLE == 0
+#undef I2C_ENABLE
 #else
-#define I2C_ENABLE 0
+#define I2C_ENABLE          1
 #endif
 #endif
 
+#ifndef I2C_ENABLE
+#define I2C_ENABLE          0
+#endif
+
 #ifndef SPINDLE_SYNC_ENABLE
-#define SPINDLE_SYNC_ENABLE     0
+#define SPINDLE_SYNC_ENABLE 0
 #endif
 
 #ifndef SPINDLE_ENCODER_ENABLE
@@ -512,11 +513,15 @@
 #undef WEBSOCKET_ENABLE
 #endif
 #define WEBSOCKET_ENABLE    1
-#if defined(SDCARD_ENABLE) && SDCARD_ENABLE == 0
+#if defined(SDCARD_ENABLE) && SDCARD_ENABLE == 0 && LITTLEFS_ENABLE != 2
 #undef SDCARD_ENABLE
 #endif
 #ifndef SDCARD_ENABLE
+#if LITTLEFS_ENABLE == 2
+#define SDCARD_ENABLE       0
+#else
 #define SDCARD_ENABLE       1
+#endif
 #endif
 #endif
 
@@ -662,6 +667,30 @@
 #else
 #define LITTLEFS_MOUNT_DIR "/littlefs"
 #endif
+#endif
+
+#define FS_FATFS    0b00001
+#define FS_SDCARD   0b00010
+#define FS_LFS      0b00100
+#define FS_LFS_ROOT 0b01000
+#define FS_YMODEM   0b10000
+
+#if SDCARD_ENABLE && LITTLEFS_ENABLE
+#if SDCARD_ENABLE == 2
+#define FS_ENABLE (FS_SDCARD|FS_FATFS|FS_LFS|FS_YMODEM)
+#else
+#define FS_ENABLE (FS_SDCARD|FS_FATFS|FS_LFS)
+#endif
+#elif LITTLEFS_ENABLE == 2
+#define FS_ENABLE (FS_LFS|FS_LFS_ROOT|FS_YMODEM)
+#elif  LITTLEFS_ENABLE
+#define FS_ENABLE FS_LFS
+#elif SDCARD_ENABLE == 1
+#define FS_ENABLE (FS_SDCARD|FS_FATFS)
+#elif SDCARD_ENABLE == 2
+#define FS_ENABLE (FS_SDCARD|FS_FATFS|FS_YMODEM)
+#else
+#define FS_ENABLE 0
 #endif
 
 #ifndef SPI_ENABLE
