@@ -1,6 +1,48 @@
 ## grblHAL changelog
 
-<a name="20250229">20250229
+<a name="20250307">Build 20250307
+
+Core:
+
+* Updated build date, default VFS mount directory created date.
+
+Drivers:
+
+* ESP32: added hook for adding 3rd party plugins to build without touching upstream code.
+
+* STM32F4xx: removed some obsoleted preprocessor code. Ref. issue [#219](https://github.com/grblHAL/STM32F4xx/issues/219).
+
+Plugins:
+
+* Networking: updated ftp daemon to properly handle root file system mount/unmount events. Added ftp support for changing read-only attribute \(`W` - owner only\).
+
+* SD card, littlefs: now blocks deletion of read-only files.
+
+---
+
+<a name="20250305">20250305
+
+Core:
+
+* Fixed ioports enumeration issue affecting remapped ports used by the ESP-AT plugin and stream passthru mode.
+
+* Changed stream passtrhu mode to not enter coprocessor MCU bootloader mode when turned on.
+
+Drivers:
+
+* Networking capable: updated for networking library changes. Some updated for incorrect sequencing of network events causing static IP mode to fail.
+
+Plugins:
+
+* Networking: next step in making library capable of supporting multiple interfaces.
+
+* WebUI: updated for networking library changes.
+
+* Misc, ESP-AT: updated to allow it to be used with controllers with ethernet enabled.
+
+---
+
+<a name="20250301">20250301
 
 Drivers:
 
