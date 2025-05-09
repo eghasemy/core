@@ -65,11 +65,11 @@ typedef message_code_t (*feedback_message_ptr)(message_code_t message_code);
 typedef alarm_code_t (*alarm_message_ptr)(alarm_code_t alarm_code);
 
 typedef struct {
-    init_message_ptr init_message;          //<! Prints system welcome message.
-    help_message_ptr help_message;          //<! Prints system help message.
-    status_message_ptr status_message;      //<! Prints system status messages.
-    feedback_message_ptr feedback_message;  //<! Prints miscellaneous feedback messages.
-    alarm_message_ptr alarm_message;        //<! Prints alarm message.
+    init_message_ptr init_message;          //!< Prints system welcome message.
+    help_message_ptr help_message;          //!< Prints system help message.
+    status_message_ptr status_message;      //!< Prints system status messages.
+    feedback_message_ptr feedback_message;  //!< Prints miscellaneous feedback messages.
+    alarm_message_ptr alarm_message;        //!< Prints alarm message.
     setting_output_ptr setting;
 } report_t;
 
@@ -89,6 +89,7 @@ typedef void (*on_state_change_ptr)(sys_state_t state);
 typedef void (*on_override_changed_ptr)(override_changed_t override);
 typedef void (*on_spindle_programmed_ptr)(spindle_ptrs_t *spindle, spindle_state_t state, float rpm, spindle_rpm_mode_t mode);
 typedef void (*on_wco_changed_ptr)(void);
+typedef void (*on_wco_saved_ptr)(coord_system_id_t id, coord_data_t *data);
 typedef void (*on_program_completed_ptr)(program_flow_t program_flow, bool check_mode);
 typedef void (*on_execute_realtime_ptr)(sys_state_t state);
 typedef void (*on_unknown_accessory_override_ptr)(uint8_t cmd);
@@ -206,6 +207,7 @@ typedef struct {
     user_mcode_execute_ptr execute;     //!< Handler for executing a user defined M-code.
 } user_mcode_ptrs_t;
 
+typedef settings_changed_ptr on_settings_changed_ptr;
 
 typedef struct {
     // report entry points set by core at reset.
@@ -219,14 +221,16 @@ typedef struct {
     on_report_handlers_init_ptr on_report_handlers_init;
     on_spindle_programmed_ptr on_spindle_programmed;
     on_wco_changed_ptr on_wco_changed;
+    on_wco_saved_ptr on_wco_saved;
     on_program_completed_ptr on_program_completed;
     on_execute_realtime_ptr on_execute_realtime;
     on_execute_realtime_ptr on_execute_delay;
     on_unknown_accessory_override_ptr on_unknown_accessory_override;
     on_report_options_ptr on_report_options;
     on_report_ngc_parameters_ptr on_report_ngc_parameters;
-    on_report_command_help_ptr on_report_command_help; //!< Deprecated, use system_register_commands() to register new commands.
+    on_report_command_help_ptr on_report_command_help;      //!< Deprecated, use system_register_commands() to register new commands.
     on_rt_reports_added_ptr on_rt_reports_added;
+    on_settings_changed_ptr on_settings_changed;            //!< Called on initial settings load and on setting changes.
     on_global_settings_restore_ptr on_global_settings_restore;
     on_setting_get_description_ptr on_setting_get_description;
     on_get_alarms_ptr on_get_alarms;

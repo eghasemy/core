@@ -58,17 +58,20 @@ typedef enum {
     Input_MPGSelect,
     Input_ModeSelect = Input_MPGSelect, // Deprecated
     Input_LimitX,
-    Input_LimitX_2,
+    Input_LimitX2,
+    Input_LimitX_2 = Input_LimitX2, // Deprecated
     Input_LimitX_Max,
     Input_HomeX,
     Input_HomeX_2,
     Input_LimitY,
-    Input_LimitY_2,
+    Input_LimitY2,
+    Input_LimitY_2 = Input_LimitY2, // Deprecated
     Input_LimitY_Max,
     Input_HomeY,
     Input_HomeY_2,
     Input_LimitZ,
-    Input_LimitZ_2,
+    Input_LimitZ2,
+    Input_LimitZ_2 = Input_LimitZ2, // Deprecated
     Input_LimitZ_Max,
     Input_HomeZ,
     Input_HomeZ_2,
@@ -105,7 +108,15 @@ typedef enum {
     Input_Aux13,
     Input_Aux14,
     Input_Aux15,
-    Input_AuxMax = Input_Aux15,
+    Input_Aux16,
+    Input_Aux17,
+    Input_Aux18,
+    Input_Aux19,
+    Input_Aux20,
+    Input_Aux21,
+    Input_Aux22,
+    Input_Aux23,
+    Input_AuxMax = Input_Aux23,
     Input_Analog_Aux0,
     Input_Analog_Aux1,
     Input_Analog_Aux2,
@@ -118,22 +129,28 @@ typedef enum {
 // Output pins
     Output_StepX,
     Outputs = Output_StepX,
-    Output_StepX_2,
+    Output_StepX2,
+    Output_StepX_2 = Output_StepX2, // deprecated
     Output_StepY,
-    Output_StepY_2,
+    Output_StepY2,
+    Output_StepY_2 = Output_StepY2, // deprecated
     Output_StepZ,
-    Output_StepZ_2,
+    Output_StepZ2,
+    Output_StepZ_2 = Output_StepZ2, // deprecated
     Output_StepA,
     Output_StepB,
     Output_StepC,
     Output_StepU,
     Output_StepV,
     Output_DirX,
-    Output_DirX_2,
+    Output_DirX2,
+    Output_DirX_2 = Output_DirX2, // deprecated
     Output_DirY,
-    Output_DirY_2,
+    Output_DirY2,
+    Output_DirY_2 = Output_DirY2, // deprecated
     Output_DirZ,
-    Output_DirZ_2,
+    Output_DirZ2,
+    Output_DirZ_2 = Output_DirZ2, // deprecated
     Output_DirA,
     Output_DirB,
     Output_DirC,
@@ -150,9 +167,13 @@ typedef enum {
     Output_MotorChipSelectM7,
     Output_StepperPower,
     Output_StepperEnable,
+    Output_StepperEnableSTEPPERS = Output_StepperEnable,
     Output_StepperEnableX,
+    Output_StepperEnableX2 = Output_StepperEnableX,
     Output_StepperEnableY,
+    Output_StepperEnableY2 = Output_StepperEnableY,
     Output_StepperEnableZ,
+    Output_StepperEnableZ2 = Output_StepperEnableZ,
     Output_StepperEnableA,
     Output_StepperEnableB,
     Output_StepperEnableU,
@@ -184,7 +205,15 @@ typedef enum {
     Output_Aux13,
     Output_Aux14,
     Output_Aux15,
-    Output_AuxMax = Output_Aux15,
+    Output_Aux16,
+    Output_Aux17,
+    Output_Aux18,
+    Output_Aux19,
+    Output_Aux20,
+    Output_Aux21,
+    Output_Aux22,
+    Output_Aux23,
+    Output_AuxMax = Output_Aux23,
     Output_Analog_Aux0,
     Output_Analog_Aux1,
     Output_Analog_Aux2,
@@ -308,6 +337,14 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Input_Aux13,                .name = "Aux in 13" },
     { .function = Input_Aux14,                .name = "Aux in 14" },
     { .function = Input_Aux15,                .name = "Aux in 15" },
+    { .function = Input_Aux16,                .name = "Aux in 16" },
+    { .function = Input_Aux17,                .name = "Aux in 17" },
+    { .function = Input_Aux18,                .name = "Aux in 18" },
+    { .function = Input_Aux19,                .name = "Aux in 19" },
+    { .function = Input_Aux20,                .name = "Aux in 20" },
+    { .function = Input_Aux21,                .name = "Aux in 21" },
+    { .function = Input_Aux22,                .name = "Aux in 22" },
+    { .function = Input_Aux23,                .name = "Aux in 23" },
     { .function = Input_Analog_Aux0,          .name = "Aux analog in 0" },
     { .function = Input_Analog_Aux1,          .name = "Aux analog in 1" },
     { .function = Input_Analog_Aux2,          .name = "Aux analog in 2" },
@@ -318,17 +355,17 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Input_Analog_Aux7,          .name = "Aux analog in 7" },
 #endif
     { .function = Output_StepX,               .name = "X step" },
-    { .function = Output_StepX_2,             .name = "X2 step" },
+    { .function = Output_StepX2,              .name = "X2 step" },
     { .function = Output_StepY,               .name = "Y step" },
-    { .function = Output_StepY_2,             .name = "Y2 step" },
+    { .function = Output_StepY2,              .name = "Y2 step" },
     { .function = Output_StepZ,               .name = "Z step" },
-    { .function = Output_StepZ_2,             .name = "Z2 step" },
+    { .function = Output_StepZ2,              .name = "Z2 step" },
     { .function = Output_DirX,                .name = "X dir" },
-    { .function = Output_DirX_2,              .name = "X2 dir" },
+    { .function = Output_DirX2,               .name = "X2 dir" },
     { .function = Output_DirY,                .name = "Y dir" },
-    { .function = Output_DirY_2,              .name = "Y2 dir" },
+    { .function = Output_DirY2,               .name = "Y2 dir" },
     { .function = Output_DirZ,                .name = "Z dir" },
-    { .function = Output_DirZ_2,              .name = "Z2 dir" },
+    { .function = Output_DirZ2,               .name = "Z2 dir" },
     { .function = Output_StepperPower,        .name = "Stepper power" },
     { .function = Output_StepperEnable,       .name = "Steppers enable" },
     { .function = Output_StepperEnableX,      .name = "X enable" },
@@ -415,6 +452,14 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Output_Aux13,               .name = "Aux out 13" },
     { .function = Output_Aux14,               .name = "Aux out 14" },
     { .function = Output_Aux15,               .name = "Aux out 15" },
+    { .function = Output_Aux15,               .name = "Aux out 16" },
+    { .function = Output_Aux16,               .name = "Aux out 17" },
+    { .function = Output_Aux17,               .name = "Aux out 18" },
+    { .function = Output_Aux18,               .name = "Aux out 19" },
+    { .function = Output_Aux19,               .name = "Aux out 20" },
+    { .function = Output_Aux20,               .name = "Aux out 21" },
+    { .function = Output_Aux21,               .name = "Aux out 22" },
+    { .function = Output_Aux22,               .name = "Aux out 23" },
     { .function = Output_Analog_Aux0,         .name = "Aux analog out 0" },
     { .function = Output_Analog_Aux1,         .name = "Aux analog out 1" },
     { .function = Output_Analog_Aux2,         .name = "Aux analog out 2" },
@@ -541,6 +586,20 @@ typedef enum {
     PullMode_UpDown  = 0b11  //!< 0b11 (0x03) - only used to report port capability.
 } pull_mode_t;
 
+//! ADC/DAC resolution or multi pin register width.
+typedef enum {
+    Resolution_4bit = 0, //!< 0 - 4 bit
+    Resolution_8bit,     //!< 1 - 8 bit
+    Resolution_10bit,    //!< 2 - 10 bit
+    Resolution_12bit,    //!< 3 - 12 bit
+    Resolution_14bit,    //!< 4 - 14 bit
+    Resolution_16bit,    //!< 5 - 16 bit
+    Resolution_18bit,    //!< 6 - 18 bit
+    Resolution_20bit,    //!< 7 - 20 bit
+    Resolution_24bit,    //!< 8 - 24 bit
+    Resolution_32bit     //!< 9 - 32 bit, NOTE: "wait for input" can only return 31 bits
+} resolution_t;
+
 #define PINMODE_NONE        (0)
 #define PINMODE_OUTPUT      (1U<<1)
 #ifndef __LPC17XX__
@@ -553,19 +612,23 @@ typedef enum {
 #define PINMODE_PWM_SERVO   (1U<<13)
 
 typedef union {
-    uint16_t mask;
+    uint32_t mask;
     struct {
-        uint16_t input      :1,
+        uint32_t input      :1,
                  output     :1,
                  open_drain :1,
-                 pull_mode  :2,
-                 irq_mode   :5,
+                 pull_mode  :2, //!< pull_mode_t - pull up/down modes
+                 irq_mode   :5, //!< pin_irq_mode_t - IRQ modes
                  invert     :1,
                  analog     :1,
                  pwm        :1,
                  servo_pwm  :1,
                  claimable  :1,
-                 debounce   :1;
+                 debounce   :1,
+                 external   :1,
+                 async      :1,
+                 resolution :4, //!< resolution_t - ADC/DAC resolution
+                 unused     :10;
     };
 } pin_cap_t;
 
@@ -653,6 +716,7 @@ struct xbar;
 
 typedef float (*xbar_get_value_ptr)(struct xbar *pin);
 typedef void (*xbar_set_value_ptr)(struct xbar *pin, float value);
+typedef bool (*xbar_set_function_ptr)(struct xbar *pin, pin_function_t function);
 typedef void (*xbar_event_ptr)(bool on);
 typedef bool (*xbar_config_ptr)(struct xbar *pin, xbar_cfg_ptr_t cfg_data, bool persistent);
 
@@ -675,18 +739,20 @@ typedef struct {
 } aux_ctrl_out_t;
 
 typedef struct xbar {
-    uint8_t id;                     //!< Pin id.
-    pin_function_t function;        //!< Pin function.
-    pin_group_t group;              //!< Pin group.
-    void *port;                     //!< Optional pointer to the underlying peripheral or pin specific data.
-    const char *description;        //!< Optional pointer to description string.
-    uint_fast8_t pin;               //!< Pin number.
-    pin_cap_t cap;                  //!< Pin capabilities.
-    pin_mode_t mode;                //!< Current pin configuration.
-    xbar_config_ptr config;         //!< Optional pointer to function for configuring the port.
-    xbar_get_value_ptr get_value;   //!< Optional pointer to function to get current port value.
-    xbar_set_value_ptr set_value;   //!< Optional pointer to function to set port value.
-    xbar_event_ptr on_event;        //!< Not used - might be removed.
+    void *ports_id;
+    uint8_t id;                         //!< Pin id.
+    pin_function_t function;            //!< Pin function.
+    pin_group_t group;                  //!< Pin group.
+    void *port;                         //!< Optional pointer to the underlying peripheral or pin specific data.
+    const char *description;            //!< Optional pointer to description string.
+    uint_fast8_t pin;                   //!< Pin number.
+    pin_cap_t cap;                      //!< Pin capabilities.
+    pin_mode_t mode;                    //!< Current pin configuration.
+    xbar_config_ptr config;             //!< Optional pointer to function for configuring the port.
+    xbar_get_value_ptr get_value;       //!< Optional pointer to function to get current port value.
+    xbar_set_value_ptr set_value;       //!< Optional pointer to function to set port value.
+    xbar_set_function_ptr set_function; //!< Optional pointer to function to set port function.
+//    xbar_event_ptr on_event;            //!< Not used - might be removed.
 } xbar_t;
 
 typedef struct {

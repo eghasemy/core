@@ -562,6 +562,7 @@ typedef struct {
     char *driver_url;               //!< Pointer to optional URL for the driver.
     char *board;                    //!< Pointer to optional board name string.
     char *board_url;                //!< Pointer to optional URL for the board.
+    float step_us_min;              //!< Minimum step pulse width (microseconds).
     uint32_t f_step_timer;          //!< Frequency of main stepper timer in Hz.
     uint32_t f_mcu;                 //!< Frequency of MCU in MHz.
     uint32_t rx_buffer_size;        //!< Input stream buffer size in bytes.
@@ -625,7 +626,7 @@ typedef struct {
     spindle_data_ptrs_t spindle_data;       //!< Handlers for getting/resetting spindle data (RPM, angular position, ...).
     stepper_ptrs_t stepper;                 //!< Handlers for stepper motors.
     io_stream_t stream;                     //!< Handlers for stream I/O.
-    settings_changed_ptr settings_changed;  //!< Callback handler to be called on settings loaded or settings changed events.
+    settings_changed_ptr settings_changed;  //!< Deprecated, hook into grbl.on_settings_changed in new code.
     probe_ptrs_t probe;                     //!< Optional handlers for probe input(s).
     tool_ptrs_t tool;                       //!< Optional handlers for tool changes.
     timer_ptrs_t timer;                     //!< Optional handlers for claiming and controlling timers.

@@ -119,7 +119,7 @@ typedef union {
 } ijk_words_t;
 
 // Declare gc extern struct
-parser_state_t gc_state;
+DCRAM parser_state_t gc_state;
 
 #define FAIL(status) return(status);
 
@@ -164,6 +164,21 @@ inline static bool no_word_value (char letter)
 parser_state_t *gc_get_state (void)
 {
     return &gc_state;
+}
+
+char *gc_coord_system_to_str (coord_system_id_t id)
+{
+    static char buf[6];
+
+    uint8_t g5x = id + 54;
+
+    strcat(strcpy(buf, "G"), uitoa((uint32_t)(g5x > 59 ? 59 : g5x)));
+    if(g5x > 59) {
+        strcat(buf, ".");
+        strcat(buf, uitoa((uint32_t)(g5x - 59)));
+    }
+
+    return buf;
 }
 
 static void set_spindle_override (spindle_t *spindle, bool disable)
@@ -745,7 +760,7 @@ status_code_t gc_execute_block (char *block)
         .G6 = On
     };
 
-    static parser_block_t gc_block;
+    DCRAM static parser_block_t gc_block;
 
 #if NGC_EXPRESSIONS_ENABLE
 
@@ -1368,15 +1383,15 @@ status_code_t gc_execute_block (char *block)
                     case 63:
                     case 64:
                     case 65:
-                        if(hal.port.digital_out == NULL || ioports_unclaimed(Port_Digital, Port_Output) == 0)
+                        if(!ioports_can_do().digital_out || ioports_unclaimed(Port_Digital, Port_Output) == 0)
                             FAIL(Status_GcodeUnsupportedCommand); // [Unsupported M command]
                         word_bit.modal_group.M5 = On;
                         port_command = (io_mcode_t)int_value;
                         break;
 
                     case 66:
-                        if(hal.port.wait_on_input == NULL || (ioports_unclaimed(Port_Digital, Port_Input) == 0 &&
-                                                               ioports_unclaimed(Port_Analog, Port_Input) == 0))
+                        if(!ioports_can_do().wait_on_input || (ioports_unclaimed(Port_Digital, Port_Input) == 0 &&
+                                                              ioports_unclaimed(Port_Analog, Port_Input) == 0))
                             FAIL(Status_GcodeUnsupportedCommand); // [Unsupported M command]
                         word_bit.modal_group.M5 = On;
                         port_command = (io_mcode_t)int_value;
@@ -1384,7 +1399,7 @@ status_code_t gc_execute_block (char *block)
 
                     case 67:
                     case 68:
-                        if(hal.port.analog_out == NULL || ioports_unclaimed(Port_Analog, Port_Output) == 0)
+                        if(!ioports_can_do().analog_out || ioports_unclaimed(Port_Analog, Port_Output) == 0)
                             FAIL(Status_GcodeUnsupportedCommand); // [Unsupported M command]
                         word_bit.modal_group.M5 = On;
                         port_command = (io_mcode_t)int_value;
@@ -3292,11 +3307,11 @@ status_code_t gc_execute_block (char *block)
 
             case IoMCode_OutputOnImmediate:
             case IoMCode_OutputOffImmediate:
-                hal.port.digital_out(gc_block.output_command.port, gc_block.output_command.value != 0.0f);
+                ioport_digital_out(gc_block.output_command.port, gc_block.output_command.value != 0.0f);
                 break;
 
             case IoMCode_WaitOnInput:
-                sys.var5399 = hal.port.wait_on_input((io_port_type_t)gc_block.output_command.is_digital, gc_block.output_command.port, (wait_mode_t)gc_block.values.l, gc_block.values.q);
+                sys.var5399 = ioport_wait_on_input((io_port_type_t)gc_block.output_command.is_digital, gc_block.output_command.port, (wait_mode_t)gc_block.values.l, gc_block.values.q);
                 system_add_rt_report(Report_M66Result);
                 break;
 
@@ -3305,7 +3320,7 @@ status_code_t gc_execute_block (char *block)
                 break;
 
             case IoMCode_AnalogOutImmediate:
-                hal.port.analog_out(gc_block.output_command.port, gc_block.output_command.value);
+                ioport_analog_out(gc_block.output_command.port, gc_block.output_command.value);
                 break;
         }
     }
@@ -3803,11 +3818,11 @@ status_code_t gc_execute_block (char *block)
                         FAIL(status);
 
                     plan_data.spindle.state.synchronized = On;
+                    plan_data.overrides.feed_hold_disable = On; // Disable feed hold.
 
                     mc_line(gc_block.values.xyz, &plan_data);
 
-                    protocol_buffer_synchronize();    // Wait until synchronized move is finished,
-                    sys.override.control = overrides; // then restore previous override disable status.
+                    mc_override_ctrl_update(overrides);  // Wait until synchronized move is finished, then restore previous override disable status.
                 }
                 break;
 
@@ -3823,7 +3838,7 @@ status_code_t gc_execute_block (char *block)
 
                     mc_thread(&plan_data, gc_state.position, &thread, overrides.feed_hold_disable);
 
-                    sys.override.control = overrides; // then restore previous override disable status.
+                    mc_override_ctrl_update(overrides); // Wait until synchronized move is finished, then restore previous override disable status.
                 }
                 break;
 
@@ -3874,9 +3889,7 @@ status_code_t gc_execute_block (char *block)
     // [21. Program flow ]:
     // M0,M1,M2,M30,M60: Perform non-running program flow actions. During a program pause, the buffer may
     // refill and can only be resumed by the cycle start run-time command.
-    gc_state.modal.program_flow = gc_block.modal.program_flow;
-
-    if(gc_state.modal.program_flow || sys.flags.single_block) {
+    if((gc_state.modal.program_flow = gc_block.modal.program_flow) || sys.flags.single_block) {
 
         protocol_buffer_synchronize(); // Sync and finish all remaining buffered motions before moving on.
 

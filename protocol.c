@@ -49,25 +49,13 @@ typedef union {
     };
 } line_flags_t;
 
-typedef struct {
-    void *data;
-    fg_task_ptr task;
-} delayed_task_t;
-
-typedef struct {
-    volatile uint_fast8_t head;
-    volatile uint_fast8_t tail;
-    delayed_task_t task[RT_QUEUE_SIZE];
-} realtime_queue_t;
+extern void task_execute_on_startup (void);
 
 static uint_fast16_t char_counter = 0;
 static char line[LINE_BUFFER_SIZE]; // Line to be executed. Zero-terminated.
 static char xcommand[LINE_BUFFER_SIZE];
 static bool keep_rt_commands = false;
-static realtime_queue_t realtime_queue = {0};
-static on_execute_realtime_ptr on_execute_delay;
 
-static void protocol_execute_rt_commands (sys_state_t state);
 static void protocol_exec_rt_suspend (sys_state_t state);
 
 // add gcode to execute not originating from normal input stream
@@ -84,16 +72,6 @@ bool protocol_enqueue_gcode (char *gcode)
         strcpy(xcommand, gcode);
 
     return ok;
-}
-
-static void protocol_on_execute_delay (sys_state_t state)
-{
-    if(sys.rt_exec_state & EXEC_RT_COMMAND) {
-        system_clear_exec_state_flag(EXEC_RT_COMMAND);
-        protocol_execute_rt_commands(0);
-    }
-
-    on_execute_delay(state);
 }
 
 static bool recheck_line (char *line, line_flags_t *flags)
@@ -138,7 +116,7 @@ static bool recheck_line (char *line, line_flags_t *flags)
 }
 
 /*
-  GRBL PRIMARY LOOP:
+  grblHAL PRIMARY LOOP:
 */
 bool protocol_main_loop (void)
 {
@@ -196,20 +174,16 @@ bool protocol_main_loop (void)
         }
 #endif
         // All systems go!
-        protocol_enqueue_foreground_task(system_execute_startup, NULL); // Schedule startup script for execution.
+        task_add_immediate(system_execute_startup, NULL); // Schedule startup script for execution.
     }
 
     // Ensure spindle and coolant is switched off on a cold start
     if(sys.cold_start) {
         spindle_all_off();
         hal.coolant.set_state((coolant_state_t){0});
-        if(realtime_queue.head != realtime_queue.tail)
-            system_set_exec_state_flag(EXEC_RT_COMMAND);  // execute any boot up commands
-        on_execute_delay = grbl.on_execute_delay;
-        grbl.on_execute_delay = protocol_on_execute_delay;
         sys.cold_start = false;
-    } else // TODO: if flushing entries from the queue that has allocated data associated then these will be orphaned/leaked.
-        memset(&realtime_queue, 0, sizeof(realtime_queue_t));
+		system_set_exec_state_flag(EXEC_RT_COMMAND);  // execute any statup up tasks
+    }
 
     // ---------------------------------------------------------------------------------
     // Primary loop! Upon a system abort, this exits back to main() to reset the system.
@@ -274,8 +248,15 @@ bool protocol_main_loop (void)
                     }
                 } else if(*line == '[' && grbl.on_user_command)
                     gc_state.last_error = grbl.on_user_command(line);
-                else if (state_get() & (STATE_ALARM|STATE_ESTOP|STATE_JOG)) // Everything else is gcode. Block if in alarm, eStop or jog mode.
-                    gc_state.last_error = Status_SystemGClock;
+                else if(state_get() & (STATE_ALARM|STATE_ESTOP|STATE_JOG)) { // Everything else is gcode. Block if in alarm, eStop or jog mode.
+                    if(*line == CMD_PROGRAM_DEMARCATION && line[1] == '\0' && (state_get() & (STATE_ALARM|STATE_ESTOP))) {
+                        gc_state.file_run = !gc_state.file_run;
+                        gc_state.last_error = Status_OK;
+                        if(grbl.on_file_demarcate)
+                            grbl.on_file_demarcate(gc_state.file_run);
+                    } else
+                        gc_state.last_error = Status_SystemGClock;
+                }
 #if COMPATIBILITY_LEVEL == 0
                 else if(gc_state.last_error == Status_OK || gc_state.last_error == Status_GcodeToolChangePending) { // Parse and execute g-code block.
 #else
@@ -383,7 +364,7 @@ bool protocol_buffer_synchronize (void)
     // If system is queued, ensure cycle resumes if the auto start flag is present.
     protocol_auto_cycle_start();
 
-    sys.flags.synchronizing = On;
+    sys.flags.synchronizing = gc_state.modal.program_flow == ProgramFlow_Running;
     while ((ok = protocol_execute_realtime()) && (plan_get_current_block() || state_get() == STATE_CYCLE));
     sys.flags.synchronizing = Off;
 
@@ -635,16 +616,9 @@ bool protocol_exec_rt_system (void)
             report_pid_log();
 
         if(rt_exec & EXEC_RT_COMMAND)
-            protocol_execute_rt_commands(0);
+            task_execute_on_startup();
 
         rt_exec &= ~(EXEC_STOP|EXEC_STATUS_REPORT|EXEC_GCODE_REPORT|EXEC_PID_REPORT|EXEC_TLO_REPORT|EXEC_RT_COMMAND); // clear requests already processed
-
-        if(sys.flags.feed_hold_pending) {
-            if(rt_exec & EXEC_CYCLE_START)
-                sys.flags.feed_hold_pending = Off;
-            else if(!sys.override.control.feed_hold_disable)
-                rt_exec |= EXEC_FEED_HOLD;
-        }
 
         // Let state machine handle any remaining requests
         if(rt_exec)
@@ -969,7 +943,7 @@ ISR_CODE bool ISR_FUNC(protocol_enqueue_realtime_command)(char c)
 
         case CMD_MPG_MODE_TOGGLE:           // Switch off MPG mode
             if((drop = hal.stream.type == StreamType_MPG))
-                protocol_enqueue_foreground_task(stream_mpg_set_mode, NULL);
+                task_add_immediate(stream_mpg_set_mode, NULL);
             break;
 
         case CMD_AUTO_REPORTING_TOGGLE:
@@ -1056,62 +1030,6 @@ ISR_CODE bool ISR_FUNC(protocol_enqueue_realtime_command)(char c)
     esc = c == ASCII_ESC;
 
     return drop;
-}
-
-static const uint32_t dummy_data = 0;
-
-
-/*! \brief Enqueue a function to be called once by the foreground process.
-\param fn pointer to a \a foreground_task_ptr type of function.
-\param data pointer to data to be passed to the callee.
-\returns true if successful, false otherwise.
-*/
-ISR_CODE bool ISR_FUNC(protocol_enqueue_foreground_task)(fg_task_ptr fn, void *data)
-{
-    bool ok;
-    uint_fast8_t bptr = (realtime_queue.head + 1) & (RT_QUEUE_SIZE - 1);    // Get next head pointer
-
-    if((ok = bptr != realtime_queue.tail)) {                    // If not buffer full
-        realtime_queue.task[realtime_queue.head].data = data;
-        realtime_queue.task[realtime_queue.head].task = fn;       // add function pointer to buffer,
-        realtime_queue.head = bptr;                             // update pointer and
-        system_set_exec_state_flag(EXEC_RT_COMMAND);            // flag it for execute
-    }
-
-    return ok;
-}
-
-/*! \brief Enqueue a function to be called once by the foreground process.
-\param fn pointer to a \a on_execute_realtime_ptr type of function.
-\returns true if successful, false otherwise.
-__NOTE:__ Deprecated, use protocol_enqueue_foreground_task instead.
-*/
-ISR_CODE bool ISR_FUNC(protocol_enqueue_rt_command)(on_execute_realtime_ptr fn)
-{
-    return protocol_enqueue_foreground_task(fn, (void *)&dummy_data);
-}
-
-// Execute enqueued functions.
-static void protocol_execute_rt_commands (sys_state_t state)
-{
-    while(realtime_queue.tail != realtime_queue.head) {
-        uint_fast8_t bptr = realtime_queue.tail;
-        if(realtime_queue.task[bptr].task.fn) {
-            if(realtime_queue.task[bptr].data == (void *)&dummy_data) {
-                on_execute_realtime_ptr call = realtime_queue.task[bptr].task.fn_deprecated;
-                realtime_queue.task[bptr].task.fn_deprecated = NULL;
-                call(state_get());
-            } else {
-                foreground_task_ptr call = realtime_queue.task[bptr].task.fn;
-                realtime_queue.task[bptr].task.fn = NULL;
-                call(realtime_queue.task[bptr].data);
-            }
-        }
-        realtime_queue.tail = (bptr + 1) & (RT_QUEUE_SIZE - 1);
-    }
-
-    if(!sys.driver_started)
-        while(true);
 }
 
 void protocol_execute_noop (sys_state_t state)

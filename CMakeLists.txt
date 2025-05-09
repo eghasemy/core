@@ -10,6 +10,7 @@ target_sources(grbl INTERFACE
  ${CMAKE_CURRENT_LIST_DIR}/machine_limits.c
  ${CMAKE_CURRENT_LIST_DIR}/messages.c
  ${CMAKE_CURRENT_LIST_DIR}/modbus.c
+ ${CMAKE_CURRENT_LIST_DIR}/modbus_rtu.c
  ${CMAKE_CURRENT_LIST_DIR}/motion_control.c
  ${CMAKE_CURRENT_LIST_DIR}/my_plugin.c
  ${CMAKE_CURRENT_LIST_DIR}/nuts_bolts.c
@@ -38,6 +39,7 @@ target_sources(grbl INTERFACE
  ${CMAKE_CURRENT_LIST_DIR}/ioports.c
  ${CMAKE_CURRENT_LIST_DIR}/vfs.c
  ${CMAKE_CURRENT_LIST_DIR}/canbus.c
+ ${CMAKE_CURRENT_LIST_DIR}/pid.c
  ${CMAKE_CURRENT_LIST_DIR}/kinematics/corexy.c
  ${CMAKE_CURRENT_LIST_DIR}/kinematics/wall_plotter.c
  ${CMAKE_CURRENT_LIST_DIR}/kinematics/delta.c

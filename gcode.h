@@ -253,6 +253,7 @@ typedef enum {
     LaserPPI_Enable = 126,              //!< 126 - M126
     LaserPPI_Rate = 127,                //!< 127 - M127
     LaserPPI_PulseLength = 128,         //!< 128 - M128
+    Laser_Overdrive = 129,              //!< 129 - M129
     RGB_WriteLEDs = 150,                //!< 150 - M150, Marlin format
     Plasma_SelectMaterial = 190,        //!< 150 - M190, LinuxCNC format
     OpenPNP_SetJerk = 20130,            //!< 20130 - M201.3
@@ -701,6 +702,8 @@ float *gc_get_scaling (void);
 
 // Get current axis offset.
 float gc_get_offset (uint_fast8_t idx, bool real_time);
+
+char *gc_coord_system_to_str (coord_system_id_t id);
 
 void gc_clear_output_commands (output_command_t *cmd);
 

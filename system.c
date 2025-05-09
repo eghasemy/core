@@ -135,14 +135,18 @@ void system_execute_startup (void *data)
 {
     if(hal.nvs.type != NVS_None) {
 
+        uint_fast8_t idx;
         char line[sizeof(stored_line_t)];
-        uint_fast8_t n;
 
-        for (n = 0; n < N_STARTUP_LINE; n++) {
-            if (!settings_read_startup_line(n, line))
+        for(idx = 0; idx < N_STARTUP_LINE; idx++) {
+            if(!settings_read_startup_line(idx, line))
                 report_execute_startup_message(line, Status_SettingReadFail);
-            else if (*line != '\0')
-                report_execute_startup_message(line, gc_execute_block(line));
+            else if(*line != '\0') {
+                char *block = strtok(line, "|");
+                do {
+                    report_execute_startup_message(block, gc_execute_block(block));
+                } while((block = strtok(NULL, "|")));
+            }
         }
     }
 }
@@ -703,8 +707,23 @@ static status_code_t set_startup_line (sys_state_t state, char *args, uint_fast8
     if(retval == Status_OK) {
         if(strlen(args) >= (sizeof(stored_line_t) - 1))
             retval = Status_Overflow;
-        else if ((retval = gc_execute_block(args)) == Status_OK) // Execute gcode block to ensure block is valid.
-            settings_write_startup_line(lnr, args);
+        else {
+
+            if(*args) {
+
+                char line[sizeof(stored_line_t)], *block;
+
+                strcpy(line, args);
+                block = strtok(line, "|");
+
+                do {
+                    retval = gc_execute_block(block); // Execute gcode block to ensure block is valid.
+                } while(retval == Status_OK && (block = strtok(NULL, "|")));
+            }
+
+            if(retval == Status_OK)
+                settings_write_startup_line(lnr, args);
+        }
     }
 
     return retval;
@@ -814,7 +833,7 @@ const char *help_pins (const char *cmd)
 
 const char *help_pin_state (const char *cmd)
 {
-    return hal.port.get_pin_info ? "output auxiliary pin states" : NULL;
+    return ioports_can_do().io ? "output auxiliary pin states" : NULL;
 }
 
 #endif
@@ -1254,7 +1273,7 @@ report_tracking_flags_t system_get_rt_report_flags (void)
 Fires the \ref grbl.on_rt_reports_added event.
 \param report a #report_tracking_t enum containing the flag(s) to set or clear.
  */
-void system_add_rt_report (report_tracking_t report)
+ISR_CODE void system_add_rt_report (report_tracking_t report)
 {
     switch(report) {
 

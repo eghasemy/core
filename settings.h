@@ -214,7 +214,7 @@ typedef enum {
     Setting_ToolChangeFeedRate = 343,
     Setting_ToolChangeSeekRate = 344,
     Setting_ToolChangePulloffRate = 345,
-    Setting_ToolChangeRestorePosition = 346,
+    Setting_ToolChangeOptions = 346,
 
     Setting_DualAxisLengthFailPercent = 347,
     Setting_DualAxisLengthFailMin = 348,
@@ -455,6 +455,9 @@ typedef enum {
     Setting_THC_Options = 674,
     Setting_MacroATC_Options = 675,
     Setting_ResetActions = 676,
+    Setting_StepperSpindle_Options = 677,
+
+    Setting_SpindlePWMOptions1 = 709,
 
     Setting_SpindleInvertMask1 = 716,
 
@@ -589,7 +592,9 @@ typedef union {
                  no_unlock_after_estop           :1,
                  settings_downgrade              :1,
                  keep_offsets_on_reset           :1,
-         		 unassigned                      :14;
+                 tool_change_at_g30              :1,
+                 tool_change_fast_pulloff        :1,
+         		 unassigned                      :12;
     };
 } settingflags_t;
 
@@ -788,7 +793,15 @@ typedef union {
                  bit12 :1,
                  bit13 :1,
                  bit14 :1,
-                 bit15 :1;
+                 bit15 :1,
+                 bit16 :1,
+                 bit17 :1,
+                 bit18 :1,
+                 bit19 :1,
+                 bit20 :1,
+                 bit21 :1,
+                 bit22 :1,
+                 bit23 :1;
     };
 } ioport_bus_t;
 
@@ -804,8 +817,7 @@ typedef enum {
     ToolChange_Manual,
     ToolChange_Manual_G59_3,
     ToolChange_SemiAutomatic,
-    ToolChange_Ignore,
-	ToolChange_FastSemiAutomatic
+    ToolChange_Ignore
 } toolchange_mode_t;
 
 typedef struct {
@@ -877,7 +889,8 @@ typedef struct {
     axes_signals_t motor_fault_enable;
     axes_signals_t motor_fault_invert;
     macro_atc_flags_t macro_atc_flags;
-    char reserved[19];          // Reserved For future expansion
+    stepper_spindle_settings_flags_t stepper_spindle_flags;
+    char reserved[18];          // Reserved For future expansion
 } settings_t;
 
 typedef enum {

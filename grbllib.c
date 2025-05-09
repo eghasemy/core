@@ -76,7 +76,7 @@ typedef union {
 } driver_startup_t;
 
 #ifndef CORE_TASK_POOL_SIZE
-#define CORE_TASK_POOL_SIZE 30
+#define CORE_TASK_POOL_SIZE 40
 #endif
 
 typedef struct core_task {
@@ -86,17 +86,24 @@ typedef struct core_task {
     struct core_task *next;
 } core_task_t;
 
-struct system sys = {0}; //!< System global variable structure.
-grbl_t grbl;
-grbl_hal_t hal;
+DCRAM system_t sys; //!< System global variable structure.
+DCRAM grbl_t grbl;
+DCRAM grbl_hal_t hal;
+
+DCRAM static core_task_t task_pool[CORE_TASK_POOL_SIZE];
 static driver_startup_t driver = { .ok = 0xFF };
-static core_task_t task_pool[CORE_TASK_POOL_SIZE] = {0};
-static core_task_t *next_task = NULL, *immediate_task = NULL, *systick_task = NULL, *last_freed = NULL;
+static core_task_t *next_task = NULL, *immediate_task = NULL, *on_booted = NULL, *systick_task = NULL, *last_freed = NULL;
 static on_linestate_changed_ptr on_linestate_changed;
+static settings_changed_ptr hal_settings_changed;
 
 #ifdef KINEMATICS_API
 kinematics_t kinematics;
 #endif
+
+__attribute__((weak)) void board_ports_init (void)
+{
+    // NOOP
+}
 
 void dummy_bool_handler (bool arg)
 {
@@ -174,11 +181,21 @@ static void output_welcome_message (void *data)
 
 static void onLinestateChanged (serial_linestate_t state)
 {
-    if(state.dtr)
+    if(state.dtr) {
+        task_delete(output_welcome_message, NULL);
         task_add_delayed(output_welcome_message, NULL, 200);
+    }
 
     if(on_linestate_changed)
         on_linestate_changed(state);
+}
+
+static void settings_changed (settings_t *settings, settings_changed_flags_t changed)
+{
+    hal_settings_changed(settings, changed);
+
+    if(grbl.on_settings_changed)
+        grbl.on_settings_changed(settings, changed);
 }
 
 // main entry point
@@ -189,6 +206,9 @@ int grbl_enter (void)
     assert(NVS_ADDR_STARTUP_BLOCK + N_STARTUP_LINE * (sizeof(stored_line_t) + NVS_CRC_BYTES) < NVS_ADDR_BUILD_INFO);
 
     bool looping = true;
+
+    memset(&sys, 0, sizeof(system_t));
+    memset(&task_pool, 0, sizeof(task_pool));
 
     // Clear all and set some core function pointers
     memset(&grbl, 0, sizeof(grbl_t));
@@ -212,6 +232,7 @@ int grbl_enter (void)
     hal.irq_disable = dummy_handler;
     hal.irq_claim = dummy_irq_claim;
     hal.nvs.size = GRBL_NVS_SIZE;
+    hal.step_us_min = 2.0f;
     hal.coolant_cap.flood = On;
     hal.limits.interrupt_callback = limit_interrupt_handler;
     hal.control.interrupt_callback = control_interrupt_handler;
@@ -291,8 +312,15 @@ int grbl_enter (void)
 */
     sys.mpg_mode = false;
 
-    if(driver.ok == 0xFF)
+    if((sys.ioinit_pending = driver.ok == 0xFF)) {
+
+        hal_settings_changed = hal.settings_changed;
+        hal.settings_changed = settings_changed;
+
         driver.setup = hal.driver_setup(&settings);
+
+        sys.ioinit_pending = false;
+    }
 
     spindle_id_t spindle_id, encoder_spindle;
 
@@ -317,7 +345,7 @@ int grbl_enter (void)
 
     if(driver.ok != 0xFF) {
         sys.alarm = Alarm_SelftestFailed;
-        protocol_enqueue_foreground_task(report_driver_error, NULL);
+        task_run_on_startup(report_driver_error, NULL);
     }
 
     hal.stepper.enable(settings.steppers.energize, true);
@@ -439,8 +467,22 @@ __attribute__((always_inline)) static inline core_task_t *task_alloc (void)
 __attribute__((always_inline)) static inline void task_free (core_task_t *task)
 {
     task->fn = NULL;
+    task->next = NULL;
     if(last_freed == NULL)
         last_freed = task;
+}
+
+__attribute__((always_inline)) static inline core_task_t *task_run (core_task_t *task)
+{
+    core_task_t *t = task;
+    foreground_task_ptr fn = task->fn;
+    void *data = task->data;
+
+    task = task->next;
+    task_free(t);
+    fn(data);
+
+    return task;
 }
 
 static void task_execute (sys_state_t state)
@@ -452,17 +494,12 @@ static void task_execute (sys_state_t state)
     if(immediate_task && sys.driver_started) {
 
         hal.irq_disable();
-        task = immediate_task;
-        immediate_task = NULL;
+        if((task = immediate_task))
+            immediate_task = NULL;
         hal.irq_enable();
 
-        do {
-            void *data = task->data;
-            foreground_task_ptr fn = task->fn;
-            task_free(task);
-            if(fn)
-                fn(data);
-        } while((task = task->next));
+        if(task) do {
+        } while((task = task_run(task)));
     }
 
     uint32_t now = hal.get_elapsed_ticks();
@@ -475,14 +512,29 @@ static void task_execute (sys_state_t state)
         task->fn(task->data);
     } while((task = task->next));
 
-    while(next_task && (int32_t)(next_task->time - now) <= 0) {
+    while((task = next_task) && (int32_t)(task->time - now) <= 0) {
 
-        void *data = next_task->data;
-        foreground_task_ptr fn = next_task->fn;
-        task_free(next_task);
-        next_task = next_task->next;
-        if(fn)
-            fn(data);
+        hal.irq_disable();
+
+        if(task == next_task)
+            next_task = task->next;
+        else {
+            core_task_t *t;
+            if((t = next_task)) {
+                while(t->next && t->next != task)
+                    t = t->next;
+                if(t->next && t->next == task)
+                    t->next = task->next;
+            }
+        }
+
+        hal.irq_enable();
+
+        void *data = task->data;
+        foreground_task_ptr fn = task->fn;
+        task_free(task);
+
+        fn(data);
     }
 }
 
@@ -501,7 +553,7 @@ ISR_CODE bool ISR_FUNC(task_add_delayed)(foreground_task_ptr fn, void *data, uin
 
         if(next_task == NULL)
             next_task = task;
-        else if((int32_t)(task->time - next_task->time) < 0) {
+        else if((int32_t)(task->time - next_task->time) <= 0) {
             task->next = next_task;
             next_task = task;
         } else {
@@ -522,7 +574,7 @@ ISR_CODE bool ISR_FUNC(task_add_delayed)(foreground_task_ptr fn, void *data, uin
     return task != NULL;
 }
 
-void task_delete (foreground_task_ptr fn, void *data)
+ISR_CODE void task_delete (foreground_task_ptr fn, void *data)
 {
     core_task_t *task, *prev = NULL;
 
@@ -621,4 +673,51 @@ ISR_CODE bool ISR_FUNC(task_add_immediate)(foreground_task_ptr fn, void *data)
     hal.irq_enable();
 
     return task != NULL;
+}
+
+/*! \brief Enqueue a function to be called once by the foreground process after the boot sequence is completed.
+\param fn pointer to a \a foreground_task_ptr type of function.
+\param data pointer to data to be passed to the callee.
+\returns true if successful, false otherwise.
+*/
+ISR_CODE bool ISR_FUNC(task_run_on_startup)(foreground_task_ptr fn, void *data)
+{
+    if(sys.cold_start) {
+
+        core_task_t *task = NULL;
+
+        hal.irq_disable();
+
+        if(fn && (task = task_alloc())) {
+
+            task->fn = fn;
+            task->data = data;
+            task->next = NULL;
+
+            if(on_booted == NULL)
+                on_booted = task;
+            else {
+                core_task_t *t = on_booted;
+                while(t->next)
+                    t = t->next;
+                t->next = task;
+            }
+        }
+
+        hal.irq_enable();
+
+        return task != NULL;
+
+    } else
+        return task_add_immediate(fn, data); // TODO: for now, to be removed...
+}
+
+// for core use only, called once from protocol.c on cold start
+void task_execute_on_startup (void)
+{
+    if(on_booted) do {
+    } while((on_booted = task_run(on_booted)));
+
+    if(!sys.driver_started)
+        while(true);
 }

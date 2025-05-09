@@ -39,6 +39,9 @@
 #if ENABLE_SPINDLE_LINEARIZATION
 #include <stdio.h>
 #endif
+#if SPINDLE_SYNC_ENABLE
+extern void st_spindle_sync_cfg (settings_t *settings, settings_changed_flags_t changed);
+#endif
 
 settings_t settings;
 
@@ -84,6 +87,8 @@ PROGMEM const settings_t defaults = {
     .flags.force_initialization_alarm = DEFAULT_FORCE_INITIALIZATION_ALARM,
     .flags.restore_overrides = DEFAULT_RESET_OVERRIDES,
     .flags.no_restore_position_after_M6 = DEFAULT_TOOLCHANGE_NO_RESTORE_POSITION,
+    .flags.tool_change_at_g30 = DEFAULT_TOOLCHANGE_AT_G30,
+    .flags.tool_change_fast_pulloff = DEFAULT_TOOLCHANGE_FAST_PROBE_PULLOFF,
     .flags.no_unlock_after_estop = DEFAULT_NO_UNLOCK_AFTER_ESTOP,
     .flags.keep_offsets_on_reset = DEFAULT_KEEP_OFFSETS_ON_RESET,
 
@@ -436,6 +441,7 @@ static char ganged_axes[] = "X-Axis,Y-Axis,Z-Axis";
 #endif
 
 static on_file_demarcate_ptr on_file_demarcate;
+static char step_us_min[4];
 static char fs_options[] = "Auto mount SD card,Hide LittleFS";
 static char spindle_types[100] = "";
 static char axis_dist[4] = "mm";
@@ -570,6 +576,35 @@ static status_code_t set_limits_invert_mask (setting_id_t id, uint_fast16_t int_
 }
 
 #endif
+
+static status_code_t validate_pulse_width (float max_rate, float steps_per_mm, float pulse_width)
+{
+/*
+    float f_step = (max_rate * steps_per_mm) / 60.0f;
+
+    return !gc_state.file_run && ((hal.max_step_rate && f_step > (float)hal.max_step_rate) || (pulse_width + 2.0f) > 1000000.0 / f_step) ? Status_MaxStepRateExceeded : Status_OK;
+*/
+    return Status_OK;
+}
+
+static status_code_t set_pulse_width (setting_id_t id, float value)
+{
+    uint_fast8_t idx = N_AXIS;
+    status_code_t status = Status_OK;
+
+    do {
+        idx--;
+#if N_AXIS > 3
+        if(bit_isfalse(settings.steppers.is_rotary.mask, bit(idx)))
+#endif
+            status = validate_pulse_width(settings.axis[idx].max_rate, settings.axis[idx].steps_per_mm, value);
+    } while(idx && status == Status_OK);
+
+    if(status == Status_OK)
+        settings.steppers.pulse_microseconds = value;
+
+    return status;
+}
 
 static status_code_t set_probe_invert (setting_id_t id, uint_fast16_t int_value)
 {
@@ -1019,7 +1054,7 @@ static status_code_t set_tool_change_mode (setting_id_t id, uint_fast16_t int_va
 {
     if(!hal.driver_cap.atc && hal.stream.suspend_read && int_value <= ToolChange_FastSemiAutomatic) {
 #if COMPATIBILITY_LEVEL > 1
-        if((toolchange_mode_t)int_value == ToolChange_Manual_G59_3 || (toolchange_mode_t)int_value == ToolChange_SemiAutomatic || (toolchange_mode_t)int_value == ToolChange_FastSemiAutomatic)
+        if((toolchange_mode_t)int_value == ToolChange_Manual_G59_3 || (toolchange_mode_t)int_value == ToolChange_SemiAutomatic)
             return Status_InvalidStatement;
 #endif
         settings.tool_change.mode = (toolchange_mode_t)int_value;
@@ -1040,12 +1075,14 @@ static status_code_t set_tool_change_probing_distance (setting_id_t id, float va
     return Status_OK;
 }
 
-static status_code_t set_tool_restore_pos (setting_id_t id, uint_fast16_t int_value)
+static status_code_t set_toolchange_flags (setting_id_t id, uint_fast16_t int_value)
 {
     if(hal.driver_cap.atc)
         return Status_InvalidStatement;
 
-    settings.flags.no_restore_position_after_M6 = int_value == 0;
+    settings.flags.no_restore_position_after_M6 = !(int_value & 0b001);
+    settings.flags.tool_change_at_g30 =  !!(int_value & 0b010);
+    settings.flags.tool_change_fast_pulloff = !!(int_value & 0b100);
 
     return Status_OK;
 }
@@ -1223,9 +1260,7 @@ static status_code_t set_axis_setting (setting_id_t setting, float value)
     switch(settings_get_axis_base(setting, &idx)) {
 
         case Setting_AxisStepsPerMM:
-            if (hal.max_step_rate && value * settings.axis[idx].max_rate > (float)hal.max_step_rate * 60.0f)
-                status = Status_MaxStepRateExceeded;
-            else {
+            if((status = validate_pulse_width(settings.axis[idx].max_rate, value, settings.steppers.pulse_microseconds)) == Status_OK) {
                 if(settings.axis[idx].steps_per_mm > 0.0f && settings.axis[idx].steps_per_mm != value) {
                     float comp = value / settings.axis[idx].steps_per_mm;
                     sys.position[idx] *= comp;
@@ -1239,9 +1274,7 @@ static status_code_t set_axis_setting (setting_id_t setting, float value)
             break;
 
         case Setting_AxisMaxRate:
-            if (hal.max_step_rate && value * settings.axis[idx].steps_per_mm > (float)hal.max_step_rate * 60.0f)
-                status = Status_MaxStepRateExceeded;
-            else
+            if((status = validate_pulse_width(value, settings.axis[idx].steps_per_mm, settings.steppers.pulse_microseconds)) == Status_OK)
                 settings.axis[idx].max_rate = value;
             break;
 
@@ -1361,6 +1394,10 @@ static float get_float (setting_id_t setting)
                 break;
         }
     } else switch(setting) {
+
+        case Setting_PulseMicroseconds:
+            value = settings.steppers.pulse_microseconds;
+            break;
 
         case Setting_HomingFeedRate:
             value = settings.axis[0].homing_feed_rate;
@@ -1540,8 +1577,10 @@ static uint32_t get_int (setting_id_t id)
             value = settings.tool_change.mode;
             break;
 
-        case Setting_ToolChangeRestorePosition:
-            value = settings.flags.no_restore_position_after_M6 ? 0 : 1;
+        case Setting_ToolChangeOptions:
+            value = (settings.flags.no_restore_position_after_M6 ? 0b000 : 0b001) |
+                     (settings.flags.tool_change_at_g30 ? 0b010 : 0b000) |
+                      (settings.flags.tool_change_fast_pulloff ? 0b100 : 0b00);
             break;
 
         case Setting_DisableG92Persistence:
@@ -1833,7 +1872,7 @@ static bool is_setting_available (const setting_detail_t *setting, uint_fast16_t
         case Setting_ToolChangeFeedRate:
         case Setting_ToolChangeSeekRate:
         case Setting_ToolChangePulloffRate:
-        case Setting_ToolChangeRestorePosition:
+        case Setting_ToolChangeOptions:
             available = !hal.driver_cap.atc;
             break;
 
@@ -1981,7 +2020,7 @@ static bool no_toolsetter_available (const setting_detail_t *setting, uint_fast1
 }
 
 PROGMEM static const setting_detail_t setting_detail[] = {
-     { Setting_PulseMicroseconds, Group_Stepper, "Step pulse time", "microseconds", Format_Decimal, "#0.0", "2.0", NULL, Setting_IsLegacy, &settings.steppers.pulse_microseconds, NULL, NULL },
+     { Setting_PulseMicroseconds, Group_Stepper, "Step pulse time", "microseconds", Format_Decimal, "#0.0", step_us_min, NULL, Setting_IsLegacyFn, set_pulse_width, get_float, NULL },
      { Setting_StepperIdleLockTime, Group_Stepper, "Step idle delay", "milliseconds", Format_Int16, "####0", NULL, "65535", Setting_IsLegacy, &settings.steppers.idle_lock_time, NULL, NULL },
      { Setting_StepInvertMask, Group_Stepper, "Step pulse invert", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsLegacy, &settings.steppers.step_invert.mask, NULL, NULL },
      { Setting_DirInvertMask, Group_Stepper, "Step direction invert", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsLegacy, &settings.steppers.dir_invert.mask, NULL, NULL },
@@ -1999,7 +2038,7 @@ PROGMEM static const setting_detail_t setting_detail[] = {
      { Setting_InvertProbePin, Group_Probing, "Invert probe inputs", NULL, Format_Bitfield, "Probe,Toolsetter", NULL, NULL, Setting_IsLegacyFn, set_probe_invert, get_int, toolsetter_available },
      { Setting_SpindlePWMBehaviour, Group_Spindle, "Deprecated", NULL, Format_Bool, NULL, NULL, NULL, Setting_IsLegacyFn, set_pwm_mode, get_int, is_setting_available },
      { Setting_GangedDirInvertMask, Group_Stepper, "Ganged axes direction invert", NULL, Format_Bitfield, ganged_axes, NULL, NULL, Setting_IsExtendedFn, set_ganged_dir_invert, get_int, is_setting_available },
-     { Setting_SpindlePWMOptions, Group_Spindle, "PWM Spindle", NULL, Format_XBitfield, "Enable,RPM controls spindle enable signal,Disable laser mode capability", NULL, NULL, Setting_IsExtendedFn, set_pwm_options, get_int, is_setting_available },
+     { Setting_SpindlePWMOptions, Group_Spindle, "PWM spindle options", NULL, Format_XBitfield, "Enable,RPM controls spindle enable signal,Disable laser mode capability", NULL, NULL, Setting_IsExtendedFn, set_pwm_options, get_int, is_setting_available },
 #if COMPATIBILITY_LEVEL <= 1
      { Setting_StatusReportMask, Group_General, "Status report options", NULL, Format_Bitfield, "Position in machine coordinate,Buffer state,Line numbers,Feed & speed,Pin state,Work coordinate offset,Overrides,Probe coordinates,Buffer sync on WCO change,Parser state,Alarm substatus,Run substatus,Enable when homing", NULL, NULL, Setting_IsExtendedFn, set_report_mask, get_int, NULL },
 #else
@@ -2109,12 +2148,12 @@ PROGMEM static const setting_detail_t setting_detail[] = {
      { Setting_AxisHomingFeedRate, Group_Axis0, "-axis homing locate feed rate", axis_rate, Format_Decimal, "###0", NULL, NULL, Setting_NonCoreFn, set_axis_setting, get_float, is_setting_available, AXIS_OPTS },
      { Setting_AxisHomingSeekRate, Group_Axis0, "-axis homing search seek rate", axis_rate, Format_Decimal, "###0", NULL, NULL, Setting_NonCoreFn, set_axis_setting, get_float, is_setting_available, AXIS_OPTS },
      { Setting_SpindleAtSpeedTolerance, Group_Spindle, "Spindle at speed tolerance", "percent", Format_Decimal, "##0.0", NULL, NULL, Setting_IsExtendedFn, set_float, get_float, is_setting_available },
-     { Setting_ToolChangeMode, Group_Toolchange, "Tool change mode", NULL, Format_RadioButtons, "Normal,Manual touch off,Manual touch off @ G59.3,Automatic touch off @ G59.3,Ignore M6,Fast Automatic touch off @ G59.3", NULL, NULL, Setting_IsExtendedFn, set_tool_change_mode, get_int, is_setting_available },
+     { Setting_ToolChangeMode, Group_Toolchange, "Tool change mode", NULL, Format_RadioButtons, "Normal,Manual touch off,Manual touch off @ G59.3,Automatic touch off @ G59.3,Ignore M6", NULL, NULL, Setting_IsExtendedFn, set_tool_change_mode, get_int, is_setting_available },
      { Setting_ToolChangeProbingDistance, Group_Toolchange, "Tool change probing distance", "mm", Format_Decimal, "#####0.0", NULL, NULL, Setting_IsExtendedFn, set_tool_change_probing_distance, get_float, is_setting_available },
      { Setting_ToolChangeFeedRate, Group_Toolchange, "Tool change locate feed rate", "mm/min", Format_Decimal, "#####0.0", NULL, NULL, Setting_IsExtended, &settings.tool_change.feed_rate, NULL, is_setting_available },
      { Setting_ToolChangeSeekRate, Group_Toolchange, "Tool change search seek rate", "mm/min", Format_Decimal, "#####0.0", NULL, NULL, Setting_IsExtended, &settings.tool_change.seek_rate, NULL, is_setting_available },
      { Setting_ToolChangePulloffRate, Group_Toolchange, "Tool change probe pull-off rate", "mm/min", Format_Decimal, "#####0.0", NULL, NULL, Setting_IsExtended, &settings.tool_change.pulloff_rate, NULL, is_setting_available },
-     { Setting_ToolChangeRestorePosition, Group_Toolchange, "Restore position after M6", NULL, Format_Bool, NULL, NULL, NULL, Setting_IsExtendedFn, set_tool_restore_pos, get_int, is_setting_available },
+     { Setting_ToolChangeOptions, Group_Toolchange, "Tool change options", NULL, Format_Bitfield, "Restore position after M6,Change tool at G30,Fast probe pull off", NULL, NULL, Setting_IsExtendedFn, set_toolchange_flags, get_int, is_setting_available },
      { Setting_DualAxisLengthFailPercent, Group_Limits_DualAxis, "Dual axis length fail", "percent", Format_Decimal, "##0.0", "0", "100", Setting_IsExtended, &settings.homing.dual_axis.fail_length_percent, NULL, is_setting_available },
      { Setting_DualAxisLengthFailMin, Group_Limits_DualAxis, "Dual axis length fail min", "mm", Format_Decimal, "#####0.000", NULL, NULL, Setting_IsExtended, &settings.homing.dual_axis.fail_distance_min, NULL, is_setting_available },
      { Setting_DualAxisLengthFailMax, Group_Limits_DualAxis, "Dual axis length fail max", "mm", Format_Decimal, "#####0.000", NULL, NULL, Setting_IsExtended, &settings.homing.dual_axis.fail_distance_max, NULL, is_setting_available },
@@ -2158,8 +2197,9 @@ PROGMEM static const setting_detail_t setting_detail[] = {
 #ifndef NO_SETTINGS_DESCRIPTIONS
 
 PROGMEM static const setting_descr_t setting_descr[] = {
-    { Setting_PulseMicroseconds, "Sets time length per step. Minimum 2 microseconds.\\n\\n"
-                                 "This needs to be reduced from the default value of 10 when max. step rates exceed approximately 80 kHz."
+    { Setting_PulseMicroseconds, "Step pulse length in microseconds.\\n"
+                                 "Minimum depends on the processor and is typically in the range of 1 - 2.5.\\n\\n"
+                                 "The length has to be reduced from the default value of 5 when max. step rate exceed approximately 140 kHz."
     },
     { Setting_StepperIdleLockTime, "Sets a short hold delay when stopping to let dynamics settle before disabling steppers. Value 255 keeps motors enabled." },
     { Setting_StepInvertMask, "Inverts the step signals (active low)." },
@@ -2210,7 +2250,7 @@ PROGMEM static const setting_descr_t setting_descr[] = {
     { Setting_HomingPulloff, "Retract distance after triggering switch to disengage it. Homing will fail if switch isn't cleared." },
     { Setting_G73Retract, "G73 retract distance (for chip breaking drilling)." },
     { Setting_PulseDelayMicroseconds, "Step pulse delay.\\n\\n"
-                                      "Normally leave this at 0 as there is an implicit delay on direction changes when AMASS is active."
+                                      "When set > 0 and less than 2 the value is rounded up to 2 microseconds."
     },
     { Setting_RpmMax, "Maximum spindle speed, can be overridden by spindle plugins." },
     { Setting_RpmMin, "Minimum spindle speed, can be overridden by spindle plugins.\\n\\n"
@@ -2300,17 +2340,21 @@ PROGMEM static const setting_descr_t setting_descr[] = {
                                        "NOTE: if the spindle on delay is set to 0 the timeout defaults to one minute."
     },
     { Setting_ToolChangeMode, "Normal: allows jogging for manual touch off. Set new position manually.\\n\\n"
-                              "Manual touch off: retracts tool axis to home position for tool change, use jogging or $TPW for touch off.\\n\\n"
-                              "Manual touch off @ G59.3: retracts tool axis to home position then to G59.3 position for tool change, use jogging or $TPW for touch off.\\n\\n"
-                              "Automatic touch off @ G59.3: retracts tool axis to home position for tool change, then to G59.3 position for automatic touch off.\\n\\n"
-                              "Fast Automatic touch off @ G59.3: Same as automatic mode, except that it uses G38.4 style probing for faster touch off.\\n\\n"
-                              "All modes except \"Normal\" and \"Ignore M6\" returns the tool (controlled point) to original position after touch off."
+                              "Manual touch off: rapids to tool change position, use jogging or $TPW for touch off.\\n\\n"
+                              "Manual touch off @ G59.3: rapids to tool change position, after change to G59.3 position for manual touch off. Use jogging or $TPW for touch off.\\n\\n"
+                              "Automatic touch off @ G59.3: rapids to tool change position, after change to G59.3 position for automatic touch off.\\n\\n"
+                              "Depending on settings the tool (controlled point) will be moved back to the to original position after touch off. "
+                              "\"tool change position\" is either tool axis home, G59.3 or G30 position depending on settings."
     },
     { Setting_ToolChangeProbingDistance, "Maximum probing distance for automatic or $TPW touch off." },
     { Setting_ToolChangeFeedRate, "Feed rate to slowly engage tool change sensor to determine the tool offset accurately." },
     { Setting_ToolChangeSeekRate, "Seek rate to quickly find the tool change sensor before the slower locating phase." },
     { Setting_ToolChangePulloffRate, "Pull-off rate for the retract move before the slower locating phase." },
-    { Setting_ToolChangeRestorePosition, "When set the spindle is moved so that the controlled point (tool tip) is the same as before the M6 command, if not the spindle is only moved to the Z home position." },
+    { Setting_ToolChangeOptions, "Restore position after M6: when set the spindle is moved so that the controlled point (tool tip) is the same as before the M6 command,"
+                                 "if not the spindle is only moved to the Z home position.\\n\\n"
+                                 "Change tool at G30: when set rapids to the G30 position via tool axis home. Requires axes to be homed.\\n\\n"
+                                 "Fast probe pulloff: use G38.4 style probing for faster touch off."
+    },
     { Setting_DualAxisLengthFailPercent, "Dual axis length fail in percent of axis max travel." },
     { Setting_DualAxisLengthFailMin, "Dual axis length fail minimum distance." },
     { Setting_DualAxisLengthFailMax, "Dual axis length fail maximum distance." },
@@ -2444,6 +2488,9 @@ void settings_write_coord_data (coord_system_id_t id, float (*coord_data)[N_AXIS
     protocol_buffer_synchronize();
 #endif
 
+    if(grbl.on_wco_saved)
+        grbl.on_wco_saved(id, (coord_data_t *)coord_data);
+
     if(hal.nvs.type != NVS_None)
         hal.nvs.memcpy_to_nvs(NVS_ADDR_PARAMETERS + id * (sizeof(coord_data_t) + NVS_CRC_BYTES), (uint8_t *)coord_data, sizeof(coord_data_t), true);
 }
@@ -2506,14 +2553,9 @@ static bool settings_clear_tool_data (void)
 
 #endif // N_TOOLS
 
-// Read global settings from persistent storage.
-// Checks version-byte of non-volatile storage and global settings copy.
-bool read_global_settings ()
+// Sanity check of settings, board map could have been changed...
+static void sanity_check (void)
 {
-    bool ok = hal.nvs.type != NVS_None && SETTINGS_VERSION == hal.nvs.get_byte(0) && hal.nvs.memcpy_from_nvs((uint8_t *)&settings, NVS_ADDR_GLOBAL, sizeof(settings_t), true) == NVS_TransferResult_OK;
-
-    // Sanity check of settings, board map could have been changed...
-
 #if LATHE_UVW_OPTION
     settings.mode = Mode_Lathe;
 #else
@@ -2526,6 +2568,30 @@ bool read_global_settings ()
 
     if(!hal.driver_cap.spindle_encoder)
         settings.spindle.ppr = 0;
+
+    if(settings.steppers.pulse_microseconds < hal.step_us_min)
+        settings.steppers.pulse_microseconds = hal.step_us_min;
+
+    if(hal.max_step_rate) {
+
+        uint_fast8_t idx = N_AXIS;
+        do {
+            idx--;
+#if N_AXIS > 3
+            if(bit_isfalse(settings.steppers.is_rotary.mask, bit(idx)) &&
+#else
+            if(
+#endif
+            (settings.axis[idx].max_rate * settings.axis[idx].steps_per_mm) / 60.0f > (float)hal.max_step_rate)
+                settings.axis[idx].max_rate = (float)hal.max_step_rate * 60.0f / settings.axis[idx].steps_per_mm;
+            // TODO: warn if changed?
+        } while(idx);
+    }
+
+    if(settings.tool_change.mode > ToolChange_Ignore) {
+        settings.tool_change.mode = ToolChange_SemiAutomatic;
+        settings.flags.tool_change_fast_pulloff = On;
+    }
 
     if(SLEEP_DURATION <= 0.0f)
         settings.flags.sleep_enable = Off;
@@ -2545,10 +2611,18 @@ bool read_global_settings ()
 
     settings.control_invert.mask |= limits_override.mask;
     settings.control_disable_pullup.mask &= ~limits_override.mask;
+}
+
+// Read global settings from persistent storage.
+// Checks version-byte of non-volatile storage and global settings copy.
+bool read_global_settings (void)
+{
+    bool ok = hal.nvs.type != NVS_None && SETTINGS_VERSION == hal.nvs.get_byte(0) && hal.nvs.memcpy_from_nvs((uint8_t *)&settings, NVS_ADDR_GLOBAL, sizeof(settings_t), true) == NVS_TransferResult_OK;
+
+    sanity_check();
 
     return ok && settings.version.id == SETTINGS_VERSION;
 }
-
 
 // Write global settings to persistent storage
 void settings_write_global (void)
@@ -3218,6 +3292,9 @@ status_code_t settings_store_setting (setting_id_t id, char *svalue)
         if(set->save)
             set->save();
 
+        if(set == &setting_details)
+            set->on_changed = hal.settings_changed;
+
         if(set->on_changed) {
 
             settings_changed_flags_t changed = {0};
@@ -3247,10 +3324,15 @@ bool settings_add_spindle_type (const char *type)
 
 void onFileDemarcate (bool start)
 {
-    if(!start && sys.flags.travel_changed && limits_homing_required()) {
-        sys.flags.travel_changed = Off;
-        system_raise_alarm(Alarm_HomingRequired);
-        grbl.report.feedback_message(Message_HomingCycleRequired);
+    if(!start) {
+
+        sanity_check();
+
+        if(sys.flags.travel_changed && limits_homing_required()) {
+            sys.flags.travel_changed = Off;
+            system_raise_alarm(Alarm_HomingRequired);
+            grbl.report.feedback_message(Message_HomingCycleRequired);
+        }
     }
 
     if(on_file_demarcate)
@@ -3290,6 +3372,8 @@ void settings_init (void)
     }
 #endif
 
+    strcpy(step_us_min, ftoa(hal.step_us_min, 1));
+
     if(!read_global_settings()) {
 
         settings_restore_t settings = settings_all;
@@ -3325,6 +3409,10 @@ void settings_init (void)
         if(hal.probe.configure) // Initialize probe invert mask.
             hal.probe.configure(false, false);
     }
+
+#if SPINDLE_SYNC_ENABLE
+    st_spindle_sync_cfg(&settings, changed);
+#endif
 
     xbar_set_homing_source();
 

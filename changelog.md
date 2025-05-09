@@ -1,5 +1,317 @@
 ## grblHAL changelog
 
+<a name="20250504">20250504
+
+Plugins:
+
+* Networking: removed stray debug message, added listening ports to `$netif` output.
+
+---
+
+<a name="20250502">20250502
+
+Drivers:
+
+* iMXRT1062, MSP432E401Y, STM32F4xx, STM32F7xx: improved handling of ethernet link up/down events.
+
+* ESP32: updated ethernet code to match latest networking plugin. Untested!
+
+Plugins:
+
+* Networking, Wiznet: improved handling of ethernet link up/down events.
+
+* Networking, telnet protocol: improved handling of ethernet link up/down events - now disconnect any connected client on link down allowing a clean reconnect after link up.
+
+---
+
+<a name="20250425">Build 20250425
+
+Core:
+
+* Updated `$N0` and `$N1` startup commands to allow multi-block \(line\) gcode commands by using `|` \(vertical bar\) as the separator.
+
+* No longer configures auxiliary output pins claimed for basic functions in order to avoid affecting any previously set alternate pin function.
+
+Drivers:
+
+* iMXRT1062: fix for issue [#95](https://github.com/grblHAL/iMXRT1062/issues/95), spindle PWM output missing.
+
+---
+
+<a name="20250424">Build 20250424
+
+Core:
+
+* Moved part of the driver based spindle sync code to the core.
+Spindle sync now has to be enabled in [grbl/config.h](https://github.com/grblHAL/core/blob/b41018543b35b0f14f9ab29d9ccc43bd0e4045dc/config.h#L526-L534).
+
+Drivers:
+
+* iMXRT1062, MSP432P401R, STM32F4xx, STM32F7xx: removed spindle sync code now in the core.
+
+* RP2040: Added tentative support for spindle sync, board maps has to be updated for spindle encoder inputs - not all can be due to pin restrictions.  
+Fixed regression causing the PicoCNC board to lose spindle PWM output.
+
+* LPC176x, ESP32, TM4C123, STM32F1xx: replaced deprecated code.
+
+Plugins:
+
+* Some: replaced deprecated code.
+
+---
+
+<a name="20250419">Build 20250419
+
+Core:
+
+* Fixed regression introduced with [PR#673](https://github.com/grblHAL/core/pull/673), added G30 as optional position for tool change and moved new tool change mode from PR#673 to `$346` - _Tool change options_.
+
+* Moved Modbus RTU code from spindle plugin to the core.
+
+* For developers: deprecated `protocol_enqueue_foreground_task()`, replaced by `task_run_on_startup()` - added alias for the deprecated version.  
+Changed signature of `modbus_isup()` to return capabilities flag instead of boolean.
+
+* Fixed bug in delayed task handler, might occasionally hang the controller. May be part of keypad issue [#17](https://github.com/grblHAL/Plugin_keypad/issues/17).
+
+Plugins:
+
+Keypad and spindle: updated for core changes.
+
+Keypad, I2C display interface: fixed alignment issue that caused hardfault on WCO changes on some platforms. May resolve issue [#17](https://github.com/grblHAL/Plugin_keypad/issues/17).
+
+---
+
+<a name="20250415">Build 20250415
+
+Core:
+
+* Fixed long standing "bug" where settings `$370` and `$372` for auxiliary ports where applied before the underlying GPIO pins were initialized by the driver.  
+Improved handling of same settings for external \(I2C, ModBus, ...\) ports.
+
+Drivers:
+
+* iMXRT1062: removed reference to deleted odometer include. Ref. odometer issue [#2](https://github.com/grblHAL/Plugin_odometer/issues/2).
+
+Plugins:
+
+* Misc: updated PCA9654E driver.
+
+---
+
+<a name="20250413">Build 20250413
+
+Core:
+
+* For developers: added wrappers/veneers for `hal.port` functions, plugin code should be changed to use these instead of calling via `hal.port` functions or accessing `hal.port` properties.  
+Improved the [ioports API](https://svn.io-engineering.com/grblHAL/html/ioports_8c.html), updated core code to make use of it. Flagged some calls and (part of) some stuctures as deprecated.
+
+Drivers:
+
+* Most: updated to make use of the new ioports API functionality.
+
+* Some: removed references to deleted odometer include. Ref. odometer issue [#2](https://github.com/grblHAL/Plugin_odometer/issues/2).
+
+Plugins:
+
+* Fans: fixed bug preventing selection of ports to use. Possibly related to issue [#242 comment](https://github.com/grblHAL/core/issues/242#issuecomment-2798816316). 
+
+* Many: updated to make use of the new ioports API functionality.
+
+---
+
+<a name="20250411">20250411
+
+Core:
+
+* Added MCP4725 I2C DAC to IO expander plugins.
+
+Drivers:
+
+* iMXRT1062, STM32F4xx, STM32F7xx, MSP432: fixed regression causing spindle encoder data to be reset shortly before starting spindle synced motion - resulting in error 41.
+
+Plugins:
+
+* Misc: added MCP4725 I2C DAC.
+
+---
+
+<a name="20250409">Build 20250409
+
+Core:
+
+* For developers: added new ioport capabilities, added optional support for drivers/boards wanting to claim basic pins \(stepper enable, spindle, coolant, ...\) from expander plugins.  
+Added registration scheme for 3rd party I/O expander plugins in [expanders_init.h](https://github.com/grblHAL/core/blob/master/expanders_init.h).
+
+* Fixed minor bug in ioport numbering \(`P<n>`/`E<n>`\) for plugin based ioports.
+
+Drivers:
+
+* iMXRT1062: fixed compilation error when Laser PPI mode was enabled. Ref. issue comment [#645, 12764973](https://github.com/grblHAL/core/discussions/645#discussioncomment-12764973).
+
+* ESP32, iMXRT1062, LPC176x, RP2040, SAMX3X8E, STM32F4xx and STM32F7xx: updated to use new scheme for I/O expander plugin initialization.
+
+* ESP32, RP2040: added initial support for claiming basic pins from IO expanders. CNC BoosterPack board: switched to use the generic PCA9654E I2C IO expander plugin instead of a driver specific plugin.
+
+Plugins:
+
+* Misc: updated MCP3221 I2C ADC and PCA9654E I2C IO expander plugins to match core changes.
+
+---
+
+<a name="20250407">Build 20250407
+
+Core:
+
+* For developers: increased max number of digital ioports to 24, added some crossbar capabilities \(external, async, entry point for setting pin function\). 
+
+Drivers:
+
+* Web Builder supported: added CO2 laser overdrive plugin.
+
+Plugins:
+
+* Laser, CO2 overdrive: now traps settings changes and reconfigures itself if needed.
+
+* Misc: added generic support for PCA9654E I2C IO expander, currently for output only.
+
+---
+
+<a name="20250405">Build 20250405
+
+Core:
+
+* Added new mid/low level HAL/API to ioports \(auxiliary ports\), makes it simpler to add ports both for base drivers and "standard"/third party plugins.  
+Ports/pins added via the new HAL/API can be "claimed" by plugin code or used by `M62` - `M68` M-codes.
+
+* Added `$709` setting for second PWM spindle when available, same functionality as `$9` - _PWM options_.
+
+* Added properties to PWM spindles to allow "overdriving" PWM output when _RPM controls spindle _enable signal_ is enabled with `$9` or `$709`.
+This may [improve CO2 laser engraving](https://github.com/grblHAL/core/issues/721#issuecomment-2776210888), especially for short "pixels".
+
+* Optimized Modbus CRC calculation, may fix issue with a compiler generating different code compared to most others. Ref. issue [#723](https://github.com/grblHAL/core/issues/723).
+
+Drivers:
+
+* All: updated to use new low level ioports HAL/API.
+
+* Some: moved support code for MCP3221 I2C ADC to shared plugin. Updated to support PWM "overdrive" mentioned above.
+
+* STM32F4xx: fixed bug/regression in the core causing spindle encoder to spindle binding to fail. Ref. STM32F4xx issue [#149](https://github.com/grblHAL/STM32F4xx/issues/149#issuecomment-2777509562).
+
+Plugins:
+
+* Misc: added MCP3221 I2C ADC plugin.
+
+* Laser: added plugin for PWM "overdrive" support, adds `M129P<n>` M-code where `<n>` is percentage of current `S`-value to add as overdrive.  
+Fixed minor bug in PPI plugin interfering with the new PWM "overdrive" plugin.
+
+---
+
+<a name="20250329">Build 20250329
+
+Core:
+
+* Fix for feedhold during G33 and G76 synchronized motion not beeing delayed until motion completed.
+
+* "Hardened" new optimized code to ensure initial motion is going in the correct direction.
+
+Drivers:
+
+* Most: harmonized handling of HAL stepper go idle call.
+
+Plugins:
+
+* Motors, odometer: updated for 20250328 core changes.
+
+---
+
+<a name="20250328">Build 20250328
+
+Core:
+
+* Reduced default step pulse length to 5 microseconds. Added HAL parameter for minimum step pulse length set by driver, used for validation of $0 setting.
+
+* Changed HAL API signature for outputting step pulses, optimized to allow drivers to only change direction outputs when there is an actual direction change.
+
+* Improved handling of overrides at end of program when all motion is buffered. Possible fix for issue [#714](https://github.com/grblHAL/core/discussions/714).
+
+* Some optimizations to allow higher step rates.
+
+Drivers:
+
+* All: updated for core HAL signature change.
+
+* Most: added hardcoded (compile time overridable) minimum step pulse off time, defaults to 2 microseconds. This will limit max. possible step rate with a given step pulse length \(from $0 setting\).
+
+* iMRXT1062, RP2040: reduced minimum step pulse length to 1 microsecond.
+
+* STM32F1xx, STM32F3xx: increased minimum step pulse length to 3.5 microseconds.
+
+* STM32F7xx: reduced minimum step pulse length to 1.5 microsecond, moved critical code run in IRQ context to ITC RAM.
+
+* STM32F1xx, STM32F3xx, STM32F4xx and STM32F7xx: changed to use single timer for step generation, eliminates \(reduces?\) risk for lost steps at very high step rates and reduces jitter.  
+Added new compile time tuning parameters for interrupt latency used for step pulse timings, board developers may want to check and possibly override these in their board maps.
+
+---
+
+<a name="20250320">Build 20250320
+
+Core:
+
+* "Hardened" task handler code, reseved some realtime control characters for macro plugins, added missing file to _CMakeLists.txt_ and made private function public for plugin use.
+
+Drivers:
+
+* ESP32: added tentative support for fourth motor for MKS DLC32 MAX board. Untested.
+
+* RP2040: moved support code for MCP3221 ADC, fixed bug affecting RP2450 IRQ handling for gpio numbers > 31 and added plasma plugin.
+
+* STM32F4xx: expanded check for I2C peripheral beeing ready to accept new commands.
+
+* STM32Fxxxx: updated _my_machine.h_ for display enable change.
+
+Plugins:
+
+* Keypad: added PR [#16](https://github.com/grblHAL/Plugin_keypad/pull/16) and keycode 'o' for cycling through coordinate systems. Changed default macro keycode bindings to new reserved realtime control characters.
+
+* Some: removed Arduino specific include paths.
+
+---
+
+<a name="20250313">Build 20250313
+
+Core:
+
+* Added setting $677 for stepper spindle options.
+
+Drivers:
+
+* ESP32: added tentative board map for FluidNC v3 6-pack board.
+
+Plugins:
+
+* Spindle: added support for setting $677. Fixed issues with stepper spindle enable/disable via S-commands. Related to issue [#30](https://github.com/grblHAL/Plugins_spindle/issues/30).
+
+---
+
+<a name="20250312">20250312
+
+Core:
+
+* Changed display plugin defines/symbols. No functional change.
+
+Drivers:
+
+* STM32F1xx: added PC9 as option for spindle PWM output.
+
+* RP2040: "hardened" code in order to avoid occasional too short step intervals at high step rates. Fixed copy/paste error.
+
+Plugins:
+
+* Spindle: fix for incorrect sign returned from stepper spindle data function used for spindle sync. Depends on stepper configuration.
+
+---
+
 <a name="20250311">Build 20250311
 
 Core:
@@ -12,11 +324,11 @@ Core:
 
 Drivers:
 
-* STM32F4xx: added flexi-HAL board, ref. PR [#]().
+* STM32F4xx: added flexi-HAL board, ref. PR [#217](https://github.com/grblHAL/STM32F4xx/pull/217).
 
 * STM32F4xx, STM32F7xx: fix for regression causing axis drift when step delay was enabled with $29. Ref. issue [#220](https://github.com/grblHAL/STM32F4xx/issues/220).
 
-* ESP32: fixed board map errors.Ref issue [#150](https://github.com/grblHAL/ESP32/issues/150). Improved I2C driver code.
+* ESP32: fixed board map errors. Ref issue [#150](https://github.com/grblHAL/ESP32/issues/150). Improved I2C driver code.
 
 Plugins:
 
