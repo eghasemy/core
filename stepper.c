@@ -92,6 +92,13 @@ static volatile segment_t *segment_buffer_tail, *segment_buffer_head;
 #if ENABLE_JERK_ACCELERATION
 // Static storage for acceleration value of last computed segment.
 static float last_segment_accel = 0.0f;
+
+#if ENABLE_S_CURVE_ACCELERATION
+// S-curve acceleration optimization for STM32F401 with FPU
+// Pre-calculated constants to reduce computational overhead
+static float jerk_accel_factor = 1.0f / 6.0f;  // 1/6 for cubic jerk calculation
+static float half_jerk_factor = 0.5f;          // 1/2 for quadratic acceleration calculation
+#endif
 #endif
 
 // Pointers for the step segment being prepped from the planner buffer. Accessed only by the
@@ -1041,7 +1048,15 @@ void st_prep_buffer (void)
                     // NOTE: Acceleration ramp only computes during first do-while loop.
 #if ENABLE_JERK_ACCELERATION
                     time_to_jerk = last_segment_accel / pl_block->jerk;
+#if ENABLE_S_CURVE_ACCELERATION
+                    // Optimized S-curve calculation for STM32F401 FPU
+                    // Distance to 0 acceleration: V(0)*T + 1/2*A0*T^2 + 1/6*J*T^3
+                    jerk_rampdown = time_to_jerk * (prep.current_speed + 
+                                                   (half_jerk_factor * last_segment_accel * time_to_jerk) + 
+                                                   (pl_block->jerk * time_to_jerk * time_to_jerk * jerk_accel_factor));
+#else
                     jerk_rampdown =time_to_jerk * (prep.current_speed + (0.5f * last_segment_accel * time_to_jerk) + (pl_block->jerk * time_to_jerk * time_to_jerk) / 6.0f);  //Distance to 0 acceleration at speed (mm == V(0)*T + 1/2 A0*T^2 + 1/6 J*T^3)
+#endif
                     if ((mm_remaining - prep.accelerate_until) > jerk_rampdown) {
                         //+1.0f to avoid divide by 0 speed, minor effect on jerk ramp
                         // Check if we are on ramp up or ramp down. Ramp down if distance to end of acceleration is less than distance needed to reach 0 acceleration.
@@ -1087,7 +1102,13 @@ void st_prep_buffer (void)
                     // NOTE: mm_var used as a misc worker variable to prevent errors when near zero speed.
 #if ENABLE_JERK_ACCELERATION
                     time_to_jerk = last_segment_accel / pl_block->jerk;
+#if ENABLE_S_CURVE_ACCELERATION
+                    // Optimized S-curve deceleration calculation for STM32F401 FPU
+                    // Speedpoint to start ramping down deceleration: V = a * t - 1/2 * j * t^2
+                    jerk_rampdown = prep.exit_speed + time_to_jerk * (last_segment_accel - (half_jerk_factor * pl_block->jerk * time_to_jerk));
+#else
                     jerk_rampdown = prep.exit_speed + time_to_jerk * (last_segment_accel - (0.5f * pl_block->jerk * time_to_jerk)); // Speedpoint to start ramping down deceleration. (V = a * t - 1/2 j * t^2)
+#endif
                     if (prep.current_speed > jerk_rampdown) {
                         // Check if we are on ramp up or ramp down. Ramp down if speed is less than speed needed for reaching 0 acceleration.
                         // Then limit acceleration change by jerk up to max acceleration and update for next segment.

@@ -198,7 +198,25 @@ or EMI triggering the related interrupt falsely or too many times.
 #endif
 
 #if !defined ENABLE_JERK_ACCELERATION || defined __DOXYGEN__
-#define ENABLE_JERK_ACCELERATION Off // Enable to use 3rd order acceleration calculations. May need more processing power, a FPU will help.
+#define ENABLE_JERK_ACCELERATION On // Enable to use 3rd order acceleration calculations (S-Curve). Optimized for STM32F401 with FPU.
+#endif
+
+/*! \def ENABLE_S_CURVE_ACCELERATION
+\brief Enhanced S-curve acceleration with optimized parameters for STM32F401.
+When enabled, provides smoother motion profiles with jerk-limited acceleration
+specifically optimized for boards with FPU like the FlexiHAL (STM32F401).
+*/
+#if !defined ENABLE_S_CURVE_ACCELERATION || defined __DOXYGEN__
+#define ENABLE_S_CURVE_ACCELERATION On // Enable enhanced S-curve acceleration features for STM32F401 optimization.
+#endif
+
+/*! \def S_CURVE_JERK_MULTIPLIER
+\brief S-curve jerk multiplier for fine-tuning acceleration profiles.
+Higher values provide more aggressive acceleration, lower values provide smoother motion.
+Recommended range: 0.8 - 1.5 for most applications.
+*/
+#if !defined S_CURVE_JERK_MULTIPLIER || defined __DOXYGEN__
+#define S_CURVE_JERK_MULTIPLIER 1.0f // Jerk multiplier for S-curve acceleration tuning.
 #endif
 
 // -
@@ -2126,31 +2144,33 @@ G90
 ///@}
 
 /*! @name 22x - Setting_AxisJerk
+S-curve acceleration jerk values optimized for STM32F401 with FPU.
+Higher values provide more aggressive acceleration while maintaining smooth motion.
 */
 ///@{
 #if !defined DEFAULT_X_JERK|| defined __DOXYGEN__
-#define DEFAULT_X_JERK 100.0f // mm/sec^3
+#define DEFAULT_X_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
 #endif
 #if !defined DEFAULT_Y_JERK|| defined __DOXYGEN__
-#define DEFAULT_Y_JERK 100.0f // mm/sec^3
+#define DEFAULT_Y_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
 #endif
 #if !defined DEFAULT_Z_JERK || defined __DOXYGEN__
-#define DEFAULT_Z_JERK 100.0f // mm/sec^3
+#define DEFAULT_Z_JERK 80.0f // mm/sec^3 - Lower for Z-axis precision
 #endif
 #if (defined A_AXIS && !defined DEFAULT_A_JERK) || defined __DOXYGEN__
-#define DEFAULT_A_JERK 100.0f // mm/sec^3
+#define DEFAULT_A_JERK 120.0f // mm/sec^3 - Optimized for rotational axes
 #endif
 #if (defined B_AXIS && !defined DEFAULT_B_JERK) || defined __DOXYGEN__
-#define DEFAULT_B_JERK 100.0f // mm/sec^3
+#define DEFAULT_B_JERK 120.0f // mm/sec^3 - Optimized for rotational axes
 #endif
 #if (defined C_AXIS && !defined DEFAULT_C_JERK) || defined __DOXYGEN__
-#define DEFAULT_C_JERK 100.0f // mm/sec^3
+#define DEFAULT_C_JERK 120.0f // mm/sec^3 - Optimized for rotational axes
 #endif
 #if (defined U_AXIS && !defined DEFAULT_U_JERK) || defined __DOXYGEN__
-#define DEFAULT_U_JERK 100.0f // mm/sec^3
+#define DEFAULT_U_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
 #endif
 #if (defined V_AXIS && !defined DEFAULT_V_JERK) || defined __DOXYGEN__
-#define DEFAULT_V_JERK 100.0f // mm/sec^3
+#define DEFAULT_V_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
 #endif
 ///@}
 

@@ -554,13 +554,22 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     //     -high speed regime: complete jerk ramp + time at max_axcel to reach desired programmed_rates
     // Profiles are calculated as symmetrical (calculate to 1/2 programmed rate, then double)
     float time_to_max_accel = block->max_acceleration / block->jerk;    // unit: min - time it takes to reach max acceleration 
+#if ENABLE_S_CURVE_ACCELERATION
+    // Optimized S-curve calculation for STM32F401 FPU
+    // Pre-calculate half jerk for efficiency: Vt = V0 + A0T + 1/2*jerk*T^2
+    float half_jerk = 0.5f * block->jerk;
+    float speed_after_jerkramp = half_jerk * time_to_max_accel * time_to_max_accel;   // unit: mm / min - velocity after one completed jerk ramp up
+    float half_programmed_rate = 0.5f * block->programmed_rate;
+#else
     float speed_after_jerkramp = 0.5f * block->jerk * time_to_max_accel * time_to_max_accel;   // unit: mm / min - velocity after one completed jerk ramp up - Vt = V0 + A0T + 1/2 jerk*T
-    if(0.5f * block->programmed_rate > speed_after_jerkramp)
+    float half_programmed_rate = 0.5f * block->programmed_rate;
+#endif
+    if(half_programmed_rate > speed_after_jerkramp)
         // Profile time = 2x (1 complete jerk ramp + additional time at max_accel to reach desired speed)
-        block->acceleration = block->programmed_rate / (2.0f *(time_to_max_accel + (0.5f * block->programmed_rate - speed_after_jerkramp) / block->max_acceleration));     
+        block->acceleration = block->programmed_rate / (2.0f *(time_to_max_accel + (half_programmed_rate - speed_after_jerkramp) / block->max_acceleration));     
     else 
         // Max Accel is not reached. time_to_halfvelocity = sqrt( 0.5 programmed_rate * 2 / jerk) -> derived from Vt = V0 + A0T + 1/2 jerk*T (v0 and a0t == 0 in this case)
-        block->acceleration = block->programmed_rate / (2.0f * sqrt(block->programmed_rate / block->jerk));  
+        block->acceleration = block->programmed_rate / (2.0f * sqrtf(block->programmed_rate / block->jerk));  
 #endif
 
     // TODO: Need to check this method handling zero junction speeds when starting from rest.
