@@ -203,7 +203,7 @@ or EMI triggering the related interrupt falsely or too many times.
 #endif
 
 #if !defined ENABLE_JERK_ACCELERATION || defined __DOXYGEN__
-#define ENABLE_JERK_ACCELERATION On // Enable to use 3rd order acceleration calculations (S-Curve). Optimized for STM32F401 with FPU.
+#define ENABLE_JERK_ACCELERATION On // Enable to use 3rd order acceleration calculations (S-Curve). Optimized for STM32F446 with FPU.
 #endif
 
 /*! \def ENABLE_S_CURVE_ACCELERATION
@@ -262,6 +262,90 @@ Controls how much jerk is reduced in sharp corners.
 */
 #if !defined S_CURVE_CORNER_JERK_FACTOR || defined __DOXYGEN__
 #define S_CURVE_CORNER_JERK_FACTOR 0.7f // Default corner jerk reduction factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_MULTIPLIER
+\brief Default S-curve jerk multiplier.
+*/
+#if !defined DEFAULT_S_CURVE_MULTIPLIER || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_MULTIPLIER 1.0f // Default jerk multiplier for S-curve acceleration tuning.
+#endif
+
+/*! \def DEFAULT_S_CURVE_CORNER_FACTOR
+\brief Default S-curve corner factor.
+*/
+#if !defined DEFAULT_S_CURVE_CORNER_FACTOR || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_CORNER_FACTOR 0.7f // Default corner jerk reduction factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_ADAPTIVE_ENABLE
+\brief Default S-curve adaptive jerk enable.
+*/
+#if !defined DEFAULT_S_CURVE_ADAPTIVE_ENABLE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_ADAPTIVE_ENABLE On // Enable adaptive jerk control by default.
+#endif
+
+/*! \def DEFAULT_S_CURVE_JUNCTION_VELOCITY_FACTOR
+\brief Default junction velocity factor.
+*/
+#if !defined DEFAULT_S_CURVE_JUNCTION_VELOCITY_FACTOR || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_JUNCTION_VELOCITY_FACTOR 1.2f // Default junction velocity factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_JUNCTION_JERK_MULTIPLIER
+\brief Default junction jerk multiplier.
+*/
+#if !defined DEFAULT_S_CURVE_JUNCTION_JERK_MULTIPLIER || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_JUNCTION_JERK_MULTIPLIER 0.8f // Default junction jerk multiplier.
+#endif
+
+/*! \def DEFAULT_S_CURVE_JUNCTION_ANGLE_THRESHOLD
+\brief Default junction angle threshold in degrees.
+*/
+#if !defined DEFAULT_S_CURVE_JUNCTION_ANGLE_THRESHOLD || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_JUNCTION_ANGLE_THRESHOLD 150.0f // Default junction angle threshold (degrees).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_ENABLE
+\brief Default path blending enable.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_ENABLE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_ENABLE On // Enable path blending by default.
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_TOLERANCE
+\brief Default path blending tolerance in mm.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_TOLERANCE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_TOLERANCE 0.02f // Default path blending tolerance (mm).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_RADIUS
+\brief Default path blending max radius in mm.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_RADIUS || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_RADIUS 2.0f // Default path blending max radius (mm).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY
+\brief Default path blending minimum velocity in mm/min.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY 10.0f // Default path blending min velocity (mm/min).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR
+\brief Default path blending jerk factor.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR 0.6f // Default path blending jerk factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD
+\brief Default path blending lookahead blocks.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD 8 // Default path blending lookahead blocks.
 #endif
 
 // -

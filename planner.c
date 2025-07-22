@@ -594,7 +594,7 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     // Profiles are calculated as symmetrical (calculate to 1/2 programmed rate, then double)
     float time_to_max_accel = block->max_acceleration / block->jerk;    // unit: min - time it takes to reach max acceleration 
 #if ENABLE_S_CURVE_ACCELERATION
-    // Optimized S-curve calculation for STM32F401 FPU
+    // Optimized S-curve calculation for STM32F446 FPU
     // Pre-calculate half jerk for efficiency: Vt = V0 + A0T + 1/2*jerk*T^2
     float half_jerk = 0.5f * block->jerk;
     float speed_after_jerkramp = half_jerk * time_to_max_accel * time_to_max_accel;   // unit: mm / min - velocity after one completed jerk ramp up

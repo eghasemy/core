@@ -28,7 +28,7 @@
 #include "nuts_bolts.h"
 #include "settings.h"
 
-// Pre-calculated constants for STM32F401 FPU optimization
+// Pre-calculated constants for STM32F446 FPU optimization
 static const float one_sixth = 1.0f / 6.0f;     // 1/6 for cubic calculations
 static const float one_half = 0.5f;             // 1/2 for quadratic calculations
 static const float one_third = 1.0f / 3.0f;     // 1/3 for cubic calculations

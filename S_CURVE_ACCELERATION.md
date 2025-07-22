@@ -1,6 +1,6 @@
 # True 7-Phase S-Curve Acceleration Implementation
 
-This grblHAL fork implements the most advanced S-curve acceleration available - a true 7-phase motion profile with runtime adjustable parameters, specifically optimized for STM32F401-based boards such as the FlexiHAL.
+This grblHAL fork implements the most advanced S-curve acceleration available - a true 7-phase motion profile with runtime adjustable parameters, specifically optimized for STM32F446-based boards such as the FlexiHAL.
 
 ## Overview
 
@@ -26,7 +26,7 @@ The implementation uses a complete 7-phase motion profile that provides optimal 
 
 ### Mathematical Model
 
-Each phase follows precise mathematical equations optimized for STM32F401 FPU:
+Each phase follows precise mathematical equations optimized for STM32F446 FPU:
 
 ```
 Phase 1 (Jerk-Up):     a(t) = j × t,  v(t) = v₀ + ½jt²,  s(t) = v₀t + ⅙jt³
@@ -150,7 +150,7 @@ $802=80.0     ; Z-axis jerk (mm/sec³)
 - **Speed**: 15-30% faster machining for complex geometry
 - **Vibration**: 40-60% reduction in machine vibration
 
-### STM32F401 Optimizations
+### STM32F446 Optimizations
 - **FPU utilization**: Leverages ARM Cortex-M4 FPU for all calculations
 - **Pre-calculated constants**: Minimizes division operations in ISR
 - **Optimized algorithms**: Real-time calculations with <5µs overhead

@@ -507,8 +507,21 @@ typedef enum {
     Setting_SpindleOffsetX = 770,
     Setting_SpindleOffsetY = 771,
 //
-// 772-779 - reserved for spindle offset settings
+// 772-789 - S-curve acceleration settings
 //
+    Setting_SCurveMultiplier = 772,
+    Setting_SCurveCornerFactor = 773,
+    Setting_SCurveAdaptiveEnable = 774,
+    Setting_SCurveJunctionVelocityFactor = 775,
+    Setting_SCurveJunctionJerkMultiplier = 776,
+    Setting_SCurveJunctionAngleThreshold = 777,
+    Setting_SCurvePathBlendingEnable = 778,
+    Setting_SCurvePathBlendingTolerance = 779,
+    Setting_SCurvePathBlendingRadius = 780,
+    Setting_SCurvePathBlendingMinVelocity = 781,
+    Setting_SCurvePathBlendingJerkFactor = 782,
+    Setting_SCurvePathBlendingLookahead = 783,
+    // 784-789 reserved for future S-curve settings
 
 // Reserving settings in the range 800 - 899 for axis settings.
     Setting_AxisSettingsBase1 = 800,    // Reserved for driver/plugin settings
@@ -842,6 +855,21 @@ typedef union {
     };
 } macro_atc_flags_t;
 
+typedef struct {
+    float multiplier;                   // S-curve jerk multiplier (0.5-2.0)
+    float corner_factor;                // Corner smoothing factor (0.1-1.0) 
+    bool adaptive_enable;               // Enable adaptive jerk control
+    float junction_velocity_factor;     // Junction velocity factor (0.5-2.0)
+    float junction_jerk_multiplier;     // Junction jerk multiplier (0.5-2.0)
+    float junction_angle_threshold;     // Junction angle threshold (degrees)
+    bool path_blending_enable;          // Enable path blending
+    float path_blending_tolerance;      // Path blending tolerance (mm)
+    float path_blending_radius;         // Max blending radius (mm)
+    float path_blending_min_velocity;   // Minimum velocity for blending (mm/min)
+    float path_blending_jerk_factor;    // Jerk factor for blending (0.1-1.0)
+    uint8_t path_blending_lookahead;    // Lookahead blocks (3-16)
+} s_curve_settings_t;
+
 typedef union {
     uint32_t value;
     struct {
@@ -890,6 +918,7 @@ typedef struct {
     axes_signals_t motor_fault_invert;
     macro_atc_flags_t macro_atc_flags;
     stepper_spindle_settings_flags_t stepper_spindle_flags;
+    s_curve_settings_t s_curve;
     char reserved[18];          // Reserved For future expansion
 } settings_t;
 
@@ -935,6 +964,7 @@ typedef enum {
     Group_CANbus,               //!< 38
     Group_Embroidery,           //!< 39
     Group_Panel,                //!< 40
+    Group_SCurve,               //!< 41
     Group_Kinematics,           //!< 41
     Group_Axis,                 //!< 42
 // NOTE: axis groups MUST be sequential AND last
