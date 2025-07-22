@@ -68,7 +68,7 @@ void s_curve_mcodes_init(void)
 // Check if M-code is handled by S-curve system
 static user_mcode_type_t s_curve_mcode_check(user_mcode_t mcode)
 {
-    switch (mcode) {
+    switch ((uint16_t)mcode) {
         case MCode_SetAcceleration:
         case MCode_SetJerk:
         case MCode_SCurveAdvanced:
@@ -88,7 +88,7 @@ static status_code_t s_curve_mcode_validate(parser_block_t *gc_block)
 {
     status_code_t state = Status_OK;
     
-    switch (gc_block->user_mcode) {
+    switch ((uint16_t)gc_block->user_mcode) {
         case MCode_SetAcceleration:
             // M204: P<print_accel> R<retract_accel> T<travel_accel>
             if (isnan(gc_block->values.p) && isnan(gc_block->values.r) && gc_block->values.t == 0) {
@@ -163,7 +163,7 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
     bool ok = true;
     char msg[100]; // Increased buffer size for longer messages
     
-    switch (gc_block->user_mcode) {
+    switch ((uint16_t)gc_block->user_mcode) {
         case MCode_SetAcceleration:
             // M204: Set acceleration
             if (!isnan(gc_block->values.p)) {
@@ -245,44 +245,48 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
         case MCode_SCurveReport:
             // M207: Report current S-curve parameters
             {
-                s_curve_settings_t *settings = s_curve_get_settings();
+                s_curve_settings_t *s_settings = s_curve_get_settings();
                 hal.stream.write("[MSG:S-Curve Parameters:]" ASCII_EOL);
-                sprintf(msg, "[MSG:XY Jerk: %.1f mm/sec^3]" ASCII_EOL, settings->jerk_xy);
+                // Use axis-specific jerk values with multiplier
+                sprintf(msg, "[MSG:X Jerk: %.1f mm/sec^3]" ASCII_EOL, 
+                       settings.axis[X_AXIS].jerk * s_settings->multiplier);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Z Jerk: %.1f mm/sec^3]" ASCII_EOL, settings->jerk_z);
+                sprintf(msg, "[MSG:Y Jerk: %.1f mm/sec^3]" ASCII_EOL, 
+                       settings.axis[Y_AXIS].jerk * s_settings->multiplier);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:E Jerk: %.1f mm/sec^3]" ASCII_EOL, settings->jerk_e);
+                sprintf(msg, "[MSG:Z Jerk: %.1f mm/sec^3]" ASCII_EOL, 
+                       settings.axis[Z_AXIS].jerk * s_settings->multiplier);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Multiplier: %.2f]" ASCII_EOL, settings->jerk_multiplier);
+                sprintf(msg, "[MSG:Multiplier: %.2f]" ASCII_EOL, s_settings->multiplier);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Corner Factor: %.2f]" ASCII_EOL, settings->corner_jerk_factor);
+                sprintf(msg, "[MSG:Corner Factor: %.2f]" ASCII_EOL, s_settings->corner_factor);
                 hal.stream.write(msg);
                 sprintf(msg, "[MSG:Adaptive: %s]" ASCII_EOL, 
-                       settings->adaptive_jerk_enable > 0.0f ? "ON" : "OFF");
+                       s_settings->adaptive_enable ? "ON" : "OFF");
                 hal.stream.write(msg);
                 
                 // Junction optimization parameters
                 hal.stream.write("[MSG:Junction Optimization:]" ASCII_EOL);
-                sprintf(msg, "[MSG:Velocity Factor: %.2f]" ASCII_EOL, settings->junction_velocity_factor);
+                sprintf(msg, "[MSG:Velocity Factor: %.2f]" ASCII_EOL, s_settings->junction_velocity_factor);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Jerk Multiplier: %.2f]" ASCII_EOL, settings->junction_jerk_multiplier);
+                sprintf(msg, "[MSG:Jerk Multiplier: %.2f]" ASCII_EOL, s_settings->junction_jerk_multiplier);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Smooth Angle: %.1f deg]" ASCII_EOL, settings->smooth_junction_angle * 180.0f / M_PI);
+                sprintf(msg, "[MSG:Smooth Angle: %.1f deg]" ASCII_EOL, s_settings->junction_angle_threshold);
                 hal.stream.write(msg);
                 
                 // Path blending parameters
                 hal.stream.write("[MSG:Path Blending:]" ASCII_EOL);
-                sprintf(msg, "[MSG:Enabled: %s]" ASCII_EOL, settings->enable_path_blending ? "ON" : "OFF");
+                sprintf(msg, "[MSG:Enabled: %s]" ASCII_EOL, s_settings->path_blending_enable ? "ON" : "OFF");
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Tolerance: %.3f mm]" ASCII_EOL, settings->blend_tolerance);
+                sprintf(msg, "[MSG:Tolerance: %.3f mm]" ASCII_EOL, s_settings->path_blending_tolerance);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Max Radius: %.2f mm]" ASCII_EOL, settings->max_blend_radius);
+                sprintf(msg, "[MSG:Max Radius: %.2f mm]" ASCII_EOL, s_settings->path_blending_radius);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Min Velocity: %.1f mm/sec]" ASCII_EOL, settings->min_blend_velocity);
+                sprintf(msg, "[MSG:Min Velocity: %.1f mm/min]" ASCII_EOL, s_settings->path_blending_min_velocity);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Jerk Factor: %.2f]" ASCII_EOL, settings->blend_jerk_factor);
+                sprintf(msg, "[MSG:Jerk Factor: %.2f]" ASCII_EOL, s_settings->path_blending_jerk_factor);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Lookahead Blocks: %d]" ASCII_EOL, settings->lookahead_blocks);
+                sprintf(msg, "[MSG:Lookahead Blocks: %d]" ASCII_EOL, s_settings->path_blending_lookahead);
                 hal.stream.write(msg);
             }
             break;
@@ -349,9 +353,9 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
 #endif
             if (ok) {
                 hal.stream.write("[MSG:Junction optimization parameters updated]" ASCII_EOL);
-                s_curve_settings_t *settings = s_curve_get_settings();
+                s_curve_settings_t *s_settings2 = s_curve_get_settings();
                 sprintf(msg, "[MSG:Velocity Factor: %.2f, Jerk Factor: %.2f]" ASCII_EOL, 
-                       settings->junction_velocity_factor, settings->junction_jerk_multiplier);
+                       s_settings2->junction_velocity_factor, s_settings2->junction_jerk_multiplier);
                 hal.stream.write(msg);
             } else {
                 hal.stream.write("[MSG:ERR: Invalid junction optimization values]" ASCII_EOL);
@@ -389,12 +393,12 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             }
             if (ok) {
                 hal.stream.write("[MSG:Path blending configuration updated]" ASCII_EOL);
-                s_curve_settings_t *settings = s_curve_get_settings();
+                s_curve_settings_t *s_settings3 = s_curve_get_settings();
                 sprintf(msg, "[MSG:Blending: %s, Tolerance: %.3f mm]" ASCII_EOL, 
-                       settings->enable_path_blending ? "ON" : "OFF", settings->blend_tolerance);
+                       s_settings3->path_blending_enable ? "ON" : "OFF", s_settings3->path_blending_tolerance);
                 hal.stream.write(msg);
-                sprintf(msg, "[MSG:Max Radius: %.2f mm, Min Velocity: %.1f mm/sec]" ASCII_EOL, 
-                       settings->max_blend_radius, settings->min_blend_velocity);
+                sprintf(msg, "[MSG:Max Radius: %.2f mm, Min Velocity: %.1f mm/min]" ASCII_EOL, 
+                       s_settings3->path_blending_radius, s_settings3->path_blending_min_velocity);
                 hal.stream.write(msg);
             } else {
                 hal.stream.write("[MSG:ERR: Invalid path blending values]" ASCII_EOL);

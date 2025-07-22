@@ -198,13 +198,13 @@ static void planner_recalculate (void)
 #if ENABLE_S_CURVE_ACCELERATION && ENABLE_PATH_BLENDING
     // Apply S-curve path blending and lookahead optimization
     s_curve_settings_t *s_settings = s_curve_get_settings();
-    if (s_settings && s_settings->enable_path_blending) {
+    if (s_settings && s_settings->path_blending_enable) {
         s_curve_lookahead_t lookahead = {0};
         
         // Collect blocks for lookahead analysis
         uint8_t count = 0;
         plan_block_t *lookahead_block = block_buffer_planned;
-        while (lookahead_block != block_buffer_head && count < s_settings->lookahead_blocks) {
+        while (lookahead_block != block_buffer_head && count < s_settings->path_blending_lookahead) {
             lookahead.blocks[count++] = lookahead_block;
             lookahead_block = lookahead_block->next;
         }
@@ -670,7 +670,7 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
 #if ENABLE_S_CURVE_ACCELERATION
             // Apply S-curve junction velocity optimization
             s_curve_settings_t *s_settings = s_curve_get_settings();
-            if (s_settings && s_settings->enable_advanced_features) {
+            if (s_settings && s_settings->adaptive_enable) {
                 float junction_angle = acosf(-junction_cos_theta); // Convert cos to angle
                 float current_velocity = sqrtf(block->max_junction_speed_sqr);
                 float next_velocity = current_velocity; // Would need next block info for proper calculation
@@ -678,9 +678,14 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
                 s_curve_junction_t s_junction = {0};
                 s_junction.junction_angle = junction_angle;
                 
+                // Use the junction structure for additional processing if needed
+                (void)s_junction; // Suppress unused variable warning
+                
                 // Apply S-curve optimized junction velocity
+                // Use X-axis jerk as reference for XY plane calculations
+                float reference_jerk = settings.axis[X_AXIS].jerk * s_settings->multiplier;
                 float optimized_velocity = s_curve_calculate_junction_velocity_limit(
-                    junction_angle, current_velocity, next_velocity, s_settings->jerk_xy);
+                    junction_angle, current_velocity, next_velocity, reference_jerk);
                     
                 // Apply the optimization while respecting the original geometric limit
                 float optimized_speed_sqr = optimized_velocity * optimized_velocity;

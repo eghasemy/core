@@ -34,8 +34,6 @@ extern settings_t settings;
 // Pre-calculated constants for STM32F446 FPU optimization
 static const float one_sixth = 1.0f / 6.0f;     // 1/6 for cubic calculations
 static const float one_half = 0.5f;             // 1/2 for quadratic calculations
-static const float one_third = 1.0f / 3.0f;     // 1/3 for cubic calculations
-static const float two_thirds = 2.0f / 3.0f;    // 2/3 for calculations
 
 // Initialize S-curve system
 void s_curve_init(void)
@@ -45,37 +43,9 @@ void s_curve_init(void)
 }
 
 // Get current settings - return pointer to global settings structure
-s_curve_runtime_settings_t* s_curve_get_settings(void)
+s_curve_settings_t* s_curve_get_settings(void)
 {
-    // Map the settings structure to maintain compatibility
-    // Note: This requires careful management since the settings.s_curve structure
-    // doesn't have exactly the same layout as s_curve_runtime_settings_t
-    static s_curve_runtime_settings_t mapped_settings;
-    
-    // Map from settings.s_curve to s_curve_settings_t format
-    mapped_settings.jerk_xy = DEFAULT_X_JERK;  // Use axis-specific jerk from settings.axis[].jerk
-    mapped_settings.jerk_z = DEFAULT_Z_JERK;   // Use axis-specific jerk from settings.axis[].jerk
-    mapped_settings.jerk_e = 120.0f;           // Default for rotary/extruder
-    mapped_settings.jerk_multiplier = settings.s_curve.multiplier;
-    mapped_settings.corner_jerk_factor = settings.s_curve.corner_factor;
-    mapped_settings.adaptive_jerk_enable = settings.s_curve.adaptive_enable ? 1.0f : 0.0f;
-    mapped_settings.min_jerk_velocity = 5.0f;  // Fixed value for compatibility
-    mapped_settings.enable_advanced_features = true;
-    
-    // Junction optimization mapping
-    mapped_settings.junction_velocity_factor = settings.s_curve.junction_velocity_factor;
-    mapped_settings.junction_jerk_multiplier = settings.s_curve.junction_jerk_multiplier;
-    mapped_settings.smooth_junction_angle = settings.s_curve.junction_angle_threshold * (M_PI / 180.0f); // Convert degrees to radians
-    
-    // Path blending mapping
-    mapped_settings.enable_path_blending = settings.s_curve.path_blending_enable;
-    mapped_settings.blend_tolerance = settings.s_curve.path_blending_tolerance;
-    mapped_settings.max_blend_radius = settings.s_curve.path_blending_radius;
-    mapped_settings.min_blend_velocity = settings.s_curve.path_blending_min_velocity / 60.0f; // Convert mm/min to mm/sec
-    mapped_settings.blend_jerk_factor = settings.s_curve.path_blending_jerk_factor;
-    mapped_settings.lookahead_blocks = settings.s_curve.path_blending_lookahead;
-    
-    return &mapped_settings;
+    return &settings.s_curve;
 }
 
 // Calculate 7-phase S-curve motion profile
@@ -109,9 +79,6 @@ bool s_curve_calculate_profile(s_curve_profile_t *profile, float distance,
     
     // Velocity at start of jerk-down phase (target velocity)
     float v_target = max_velocity;
-    
-    // Check if we can reach target velocity
-    float v_max_reachable = v_jerk_up + acceleration * 0.0f; // Will be calculated
     
     // Calculate constant acceleration time
     float dv_accel = v_target - v_jerk_up - one_half * jerk * t_jerk * t_jerk;

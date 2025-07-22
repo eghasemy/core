@@ -113,7 +113,7 @@ bool s_curve_set_jerk_multiplier(float multiplier);
 bool s_curve_set_corner_factor(float factor);
 
 void s_curve_init(void);
-s_curve_runtime_settings_t* s_curve_get_settings(void);
+s_curve_settings_t* s_curve_get_settings(void);
 
 // M-code interface initialization  
 #if S_CURVE_ENABLE_MCODES
