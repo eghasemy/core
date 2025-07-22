@@ -181,16 +181,19 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
                 for (uint8_t idx = 0; idx < 2; idx++) { // X and Y axes
                     ok &= settings_override_acceleration(idx, gc_block->values.p);
                 }
+                gc_block->words.p = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.r)) {
                 // R parameter: retract acceleration (typically for E axis)
                 if (N_AXIS > 3) {
                     ok &= settings_override_acceleration(3, gc_block->values.r);
                 }
+                gc_block->words.r = Off; // Mark parameter as consumed
             }
             if (gc_block->values.t != 0) {
                 // T parameter: travel acceleration for Z
                 ok &= settings_override_acceleration(Z_AXIS, (float)gc_block->values.t);
+                gc_block->words.t = Off; // Mark parameter as consumed
             }
             if (ok) {
                 hal.stream.write("[MSG:Acceleration updated]" ASCII_EOL);
@@ -203,17 +206,21 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             // M205: Set jerk parameters
             if (!isnan(gc_block->values.xyz[X_AXIS])) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_JerkXY, gc_block->values.xyz[X_AXIS]);
+                gc_block->words.x = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.xyz[Z_AXIS])) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_JerkZ, gc_block->values.xyz[Z_AXIS]);
+                gc_block->words.z = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.e)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_JerkE, gc_block->values.e);
+                gc_block->words.e = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.ijk[J_VALUE])) {
                 // Junction deviation - update corner factor
                 float corner_factor = max(0.1f, min(1.0f, 1.0f - gc_block->values.ijk[J_VALUE] * 10.0f));
                 ok &= s_curve_set_parameter_realtime(SCurveParam_CornerFactor, corner_factor);
+                gc_block->words.j = Off; // Mark parameter as consumed
             }
             if (ok) {
                 hal.stream.write("[MSG:Jerk parameters updated]" ASCII_EOL);
@@ -226,23 +233,28 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             // M206: Advanced S-curve parameters
             if (!isnan(gc_block->values.m)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_JerkMultiplier, gc_block->values.m);
+                gc_block->words.m = Off; // Mark parameter as consumed
             }
 #ifndef C_AXIS
             if (!isnan(gc_block->values.c)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_CornerFactor, gc_block->values.c);
+                gc_block->words.c = Off; // Mark parameter as consumed
             }
 #else
             if (!isnan(gc_block->values.xyz[C_AXIS])) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_CornerFactor, gc_block->values.xyz[C_AXIS]);
+                gc_block->words.c = Off; // Mark parameter as consumed
             }
 #endif
 #ifndef A_AXIS
             if (!isnan(gc_block->values.a)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_AdaptiveEnable, gc_block->values.a);
+                gc_block->words.a = Off; // Mark parameter as consumed
             }
 #else
             if (gc_block->values.xyz[A_AXIS] != 0.0f) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_AdaptiveEnable, gc_block->values.xyz[A_AXIS]);
+                gc_block->words.a = Off; // Mark parameter as consumed
             }
 #endif
             if (ok) {
@@ -311,10 +323,17 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             // M209: Set S-curve profile options
             if (!isnan(gc_block->values.s)) {
                 int profile_type = (int)gc_block->values.s;
+                gc_block->words.s = Off; // Mark parameter as consumed
 #ifndef V_AXIS
                 float value = isnan(gc_block->values.v) ? 1.0f : gc_block->values.v;
+                if (!isnan(gc_block->values.v)) {
+                    gc_block->words.v = Off; // Mark parameter as consumed
+                }
 #else
                 float value = (gc_block->values.xyz[V_AXIS] == 0.0f) ? 1.0f : gc_block->values.xyz[V_AXIS];
+                if (gc_block->values.xyz[V_AXIS] != 0.0f) {
+                    gc_block->words.v = Off; // Mark parameter as consumed
+                }
 #endif
                 
                 switch (profile_type) {
@@ -348,17 +367,21 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             // M210: Junction velocity optimization settings
             if (!isnan(gc_block->values.f)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_JunctionVelocityFactor, gc_block->values.f);
+                gc_block->words.f = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.ijk[J_VALUE])) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_JunctionJerkMultiplier, gc_block->values.ijk[J_VALUE]);
+                gc_block->words.j = Off; // Mark parameter as consumed
             }
 #ifndef A_AXIS
             if (!isnan(gc_block->values.a)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_SmoothJunctionAngle, gc_block->values.a * M_PI / 180.0f);
+                gc_block->words.a = Off; // Mark parameter as consumed
             }
 #else
             if (gc_block->values.xyz[A_AXIS] != 0.0f) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_SmoothJunctionAngle, gc_block->values.xyz[A_AXIS] * M_PI / 180.0f);
+                gc_block->words.a = Off; // Mark parameter as consumed
             }
 #endif
             if (ok) {
@@ -377,29 +400,36 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             if (!isnan(gc_block->values.s)) {
                 bool enable = (gc_block->values.s > 0.0f);
                 ok &= s_curve_set_parameter_realtime(SCurveParam_EnablePathBlending, enable ? 1.0f : 0.0f);
+                gc_block->words.s = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.p)) {
                 // P parameter for tolerance (replacing T)
                 ok &= s_curve_set_parameter_realtime(SCurveParam_BlendTolerance, gc_block->values.p);
+                gc_block->words.p = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.r)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_MaxBlendRadius, gc_block->values.r);
+                gc_block->words.r = Off; // Mark parameter as consumed
             }
 #ifndef V_AXIS
             if (!isnan(gc_block->values.v)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_MinBlendVelocity, gc_block->values.v);
+                gc_block->words.v = Off; // Mark parameter as consumed
             }
 #else
             if (gc_block->values.xyz[V_AXIS] != 0.0f) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_MinBlendVelocity, gc_block->values.xyz[V_AXIS]);
+                gc_block->words.v = Off; // Mark parameter as consumed
             }
 #endif
             if (!isnan(gc_block->values.f)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_BlendJerkFactor, gc_block->values.f);
+                gc_block->words.f = Off; // Mark parameter as consumed
             }
             if (gc_block->values.l != 0) {
                 // L parameter is uint8_t
                 ok &= s_curve_set_parameter_realtime(SCurveParam_LookaheadBlocks, (float)gc_block->values.l);
+                gc_block->words.l = Off; // Mark parameter as consumed
             }
             if (ok) {
                 hal.stream.write("[MSG:Path blending configuration updated]" ASCII_EOL);
@@ -420,12 +450,15 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             // V<min_stop_velocity> Q<jerk_multiplier> D<stop_threshold_distance>
             if (!isnan(gc_block->values.v)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_MinStopVelocity, gc_block->values.v);
+                gc_block->words.v = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.q)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_FinalDecelJerkMultiplier, gc_block->values.q);
+                gc_block->words.q = Off; // Mark parameter as consumed
             }
             if (!isnan(gc_block->values.d)) {
                 ok &= s_curve_set_parameter_realtime(SCurveParam_StopThresholdDistance, gc_block->values.d);
+                gc_block->words.d = Off; // Mark parameter as consumed
             }
             if (ok) {
                 hal.stream.write("[MSG:Final deceleration settings updated]" ASCII_EOL);
