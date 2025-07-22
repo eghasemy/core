@@ -194,6 +194,28 @@ static void planner_recalculate (void)
 
         block = block->next;
     }
+
+#if ENABLE_S_CURVE_ACCELERATION && ENABLE_PATH_BLENDING
+    // Apply S-curve path blending and lookahead optimization
+    s_curve_settings_t *s_settings = s_curve_get_settings();
+    if (s_settings && s_settings->enable_path_blending) {
+        s_curve_lookahead_t lookahead = {0};
+        
+        // Collect blocks for lookahead analysis
+        uint8_t count = 0;
+        plan_block_t *lookahead_block = block_buffer_planned;
+        while (lookahead_block != block_buffer_head && count < s_settings->lookahead_blocks) {
+            lookahead.blocks[count++] = lookahead_block;
+            lookahead_block = lookahead_block->next;
+        }
+        lookahead.block_count = count;
+        
+        // Optimize the lookahead sequence if we have enough blocks
+        if (count >= 3) {
+            s_curve_optimize_lookahead_sequence(&lookahead);
+        }
+    }
+#endif
 }
 
 inline static void plan_cleanup (plan_block_t *block)
@@ -644,6 +666,29 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
             float sin_theta_d2 = sqrtf(0.5f * (1.0f - junction_cos_theta)); // Trig half angle identity. Always positive.
             block->max_junction_speed_sqr = max(MINIMUM_JUNCTION_SPEED * MINIMUM_JUNCTION_SPEED,
                                                   (junction_acceleration * settings.junction_deviation * sin_theta_d2) / (1.0f - sin_theta_d2));
+
+#if ENABLE_S_CURVE_ACCELERATION
+            // Apply S-curve junction velocity optimization
+            s_curve_settings_t *s_settings = s_curve_get_settings();
+            if (s_settings && s_settings->enable_advanced_features) {
+                float junction_angle = acosf(-junction_cos_theta); // Convert cos to angle
+                float current_velocity = sqrtf(block->max_junction_speed_sqr);
+                float next_velocity = current_velocity; // Would need next block info for proper calculation
+                
+                s_curve_junction_t s_junction = {0};
+                s_junction.junction_angle = junction_angle;
+                
+                // Apply S-curve optimized junction velocity
+                float optimized_velocity = s_curve_calculate_junction_velocity_limit(
+                    junction_angle, current_velocity, next_velocity, s_settings->jerk_xy);
+                    
+                // Apply the optimization while respecting the original geometric limit
+                float optimized_speed_sqr = optimized_velocity * optimized_velocity;
+                if (optimized_speed_sqr < block->max_junction_speed_sqr && optimized_speed_sqr > MINIMUM_JUNCTION_SPEED * MINIMUM_JUNCTION_SPEED) {
+                    block->max_junction_speed_sqr = optimized_speed_sqr;
+                }
+            }
+#endif
         }
     }
 

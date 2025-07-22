@@ -41,7 +41,9 @@ typedef enum {
     MCode_SCurveAdvanced = 206,         // M206 - S-curve advanced parameters
     MCode_SCurveReport = 207,           // M207 - Report S-curve parameters
     MCode_SCurveReset = 208,            // M208 - Reset S-curve parameters to defaults
-    MCode_SCurveProfile = 209           // M209 - Set S-curve profile (adaptive, corner factor)
+    MCode_SCurveProfile = 209,          // M209 - Set S-curve profile (adaptive, corner factor)
+    MCode_JunctionOptimize = 210,       // M210 - Junction velocity optimization settings
+    MCode_PathBlending = 211            // M211 - Path blending configuration
 } s_curve_mcode_t;
 
 // Forward declarations
@@ -73,6 +75,8 @@ static user_mcode_type_t s_curve_mcode_check(user_mcode_t mcode)
         case MCode_SCurveReport:
         case MCode_SCurveReset:
         case MCode_SCurveProfile:
+        case MCode_JunctionOptimize:
+        case MCode_PathBlending:
             return UserMCode_Normal;
         default:
             return UserMCode_Unsupported;
@@ -124,6 +128,27 @@ static status_code_t s_curve_mcode_validate(parser_block_t *gc_block)
             }
             break;
             
+        case MCode_JunctionOptimize:
+            // M210: Junction velocity optimization
+            // F<velocity_factor> J<jerk_multiplier> A<angle_threshold>
+            if (isnan(gc_block->values.f) && isnan(gc_block->values.ijk[J_VALUE]) && 
+#ifndef A_AXIS  
+                isnan(gc_block->values.a)) {
+#else
+                gc_block->values.xyz[A_AXIS] == 0.0f) {
+#endif
+                state = Status_GcodeValueWordMissing;
+            }
+            break;
+            
+        case MCode_PathBlending:
+            // M211: Path blending configuration  
+            // S<enable> P<tolerance> R<max_radius> V<min_velocity> F<jerk_factor> L<lookahead_blocks>
+            if (isnan(gc_block->values.s)) {
+                state = Status_GcodeValueWordMissing;
+            }
+            break;
+            
         default:
             state = Status_GcodeUnsupportedCommand;
             break;
@@ -136,7 +161,7 @@ static status_code_t s_curve_mcode_validate(parser_block_t *gc_block)
 static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
 {
     bool ok = true;
-    char msg[50];
+    char msg[100]; // Increased buffer size for longer messages
     
     switch (gc_block->user_mcode) {
         case MCode_SetAcceleration:
@@ -235,6 +260,30 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
                 sprintf(msg, "[MSG:Adaptive: %s]" ASCII_EOL, 
                        settings->adaptive_jerk_enable > 0.0f ? "ON" : "OFF");
                 hal.stream.write(msg);
+                
+                // Junction optimization parameters
+                hal.stream.write("[MSG:Junction Optimization:]" ASCII_EOL);
+                sprintf(msg, "[MSG:Velocity Factor: %.2f]" ASCII_EOL, settings->junction_velocity_factor);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Jerk Multiplier: %.2f]" ASCII_EOL, settings->junction_jerk_multiplier);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Smooth Angle: %.1f deg]" ASCII_EOL, settings->smooth_junction_angle * 180.0f / M_PI);
+                hal.stream.write(msg);
+                
+                // Path blending parameters
+                hal.stream.write("[MSG:Path Blending:]" ASCII_EOL);
+                sprintf(msg, "[MSG:Enabled: %s]" ASCII_EOL, settings->enable_path_blending ? "ON" : "OFF");
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Tolerance: %.3f mm]" ASCII_EOL, settings->blend_tolerance);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Max Radius: %.2f mm]" ASCII_EOL, settings->max_blend_radius);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Min Velocity: %.1f mm/sec]" ASCII_EOL, settings->min_blend_velocity);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Jerk Factor: %.2f]" ASCII_EOL, settings->blend_jerk_factor);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Lookahead Blocks: %d]" ASCII_EOL, settings->lookahead_blocks);
+                hal.stream.write(msg);
             }
             break;
             
@@ -278,6 +327,77 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
                 } else {
                     hal.stream.write("[MSG:ERR: Invalid profile type or value]" ASCII_EOL);
                 }
+            }
+            break;
+            
+        case MCode_JunctionOptimize:
+            // M210: Junction velocity optimization settings
+            if (!isnan(gc_block->values.f)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_JunctionVelocityFactor, gc_block->values.f);
+            }
+            if (!isnan(gc_block->values.ijk[J_VALUE])) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_JunctionJerkMultiplier, gc_block->values.ijk[J_VALUE]);
+            }
+#ifndef A_AXIS
+            if (!isnan(gc_block->values.a)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_SmoothJunctionAngle, gc_block->values.a * M_PI / 180.0f);
+            }
+#else
+            if (gc_block->values.xyz[A_AXIS] != 0.0f) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_SmoothJunctionAngle, gc_block->values.xyz[A_AXIS] * M_PI / 180.0f);
+            }
+#endif
+            if (ok) {
+                hal.stream.write("[MSG:Junction optimization parameters updated]" ASCII_EOL);
+                s_curve_settings_t *settings = s_curve_get_settings();
+                sprintf(msg, "[MSG:Velocity Factor: %.2f, Jerk Factor: %.2f]" ASCII_EOL, 
+                       settings->junction_velocity_factor, settings->junction_jerk_multiplier);
+                hal.stream.write(msg);
+            } else {
+                hal.stream.write("[MSG:ERR: Invalid junction optimization values]" ASCII_EOL);
+            }
+            break;
+            
+        case MCode_PathBlending:
+            // M211: Path blending configuration
+            if (!isnan(gc_block->values.s)) {
+                bool enable = (gc_block->values.s > 0.0f);
+                ok &= s_curve_set_parameter_realtime(SCurveParam_EnablePathBlending, enable ? 1.0f : 0.0f);
+            }
+            if (!isnan(gc_block->values.p)) {
+                // P parameter for tolerance (replacing T)
+                ok &= s_curve_set_parameter_realtime(SCurveParam_BlendTolerance, gc_block->values.p);
+            }
+            if (!isnan(gc_block->values.r)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_MaxBlendRadius, gc_block->values.r);
+            }
+#ifndef V_AXIS
+            if (!isnan(gc_block->values.v)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_MinBlendVelocity, gc_block->values.v);
+            }
+#else
+            if (gc_block->values.xyz[V_AXIS] != 0.0f) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_MinBlendVelocity, gc_block->values.xyz[V_AXIS]);
+            }
+#endif
+            if (!isnan(gc_block->values.f)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_BlendJerkFactor, gc_block->values.f);
+            }
+            if (gc_block->values.l != 0) {
+                // L parameter is uint8_t
+                ok &= s_curve_set_parameter_realtime(SCurveParam_LookaheadBlocks, (float)gc_block->values.l);
+            }
+            if (ok) {
+                hal.stream.write("[MSG:Path blending configuration updated]" ASCII_EOL);
+                s_curve_settings_t *settings = s_curve_get_settings();
+                sprintf(msg, "[MSG:Blending: %s, Tolerance: %.3f mm]" ASCII_EOL, 
+                       settings->enable_path_blending ? "ON" : "OFF", settings->blend_tolerance);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Max Radius: %.2f mm, Min Velocity: %.1f mm/sec]" ASCII_EOL, 
+                       settings->max_blend_radius, settings->min_blend_velocity);
+                hal.stream.write(msg);
+            } else {
+                hal.stream.write("[MSG:ERR: Invalid path blending values]" ASCII_EOL);
             }
             break;
             

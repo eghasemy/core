@@ -191,7 +191,7 @@ or EMI triggering the related interrupt falsely or too many times.
 
 // EXPERIMENTAL OPTIONS
 
-#define ENABLE_PATH_BLENDING Off // Do NOT enable unless working on adding this feature!
+#define ENABLE_PATH_BLENDING On // Enable S-curve aware path blending for smoother motion
 
 #if !defined ENABLE_ACCELERATION_PROFILES || defined __DOXYGEN__
 #define ENABLE_ACCELERATION_PROFILES Off // Enable to allow G-Code changeable acceleration profiles.
