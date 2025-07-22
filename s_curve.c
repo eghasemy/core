@@ -28,70 +28,54 @@
 #include "nuts_bolts.h"
 #include "settings.h"
 
+// External settings declaration
+extern settings_t settings;
+
 // Pre-calculated constants for STM32F446 FPU optimization
 static const float one_sixth = 1.0f / 6.0f;     // 1/6 for cubic calculations
 static const float one_half = 0.5f;             // 1/2 for quadratic calculations
 static const float one_third = 1.0f / 3.0f;     // 1/3 for cubic calculations
 static const float two_thirds = 2.0f / 3.0f;    // 2/3 for calculations
 
-// Runtime S-curve settings
-static s_curve_settings_t s_curve_settings = {
-    .jerk_xy = 150.0f,              // Default XY jerk (mm/sec³)
-    .jerk_z = 80.0f,                // Default Z jerk (mm/sec³)
-    .jerk_e = 120.0f,               // Default E jerk (mm/sec³)
-    .jerk_multiplier = 1.0f,        // Default multiplier
-    .corner_jerk_factor = 0.7f,     // Reduce jerk in corners
-    .adaptive_jerk_enable = 1.0f,   // Enable adaptive jerk by default
-    .min_jerk_velocity = 5.0f,      // Minimum velocity for jerk limiting
-    .enable_advanced_features = true,
-    
-    // Junction velocity optimization defaults
-    .junction_velocity_factor = 1.2f,  // 20% junction velocity boost
-    .junction_jerk_multiplier = 0.8f,  // Reduce jerk at junctions by 20%
-    .smooth_junction_angle = 2.617f,   // 150 degrees in radians
-    
-    // Path blending defaults
-    .enable_path_blending = true,      // Enable path blending
-    .blend_tolerance = 0.02f,          // 0.02mm blending tolerance
-    .max_blend_radius = 2.0f,          // 2mm maximum blend radius
-    .min_blend_velocity = 10.0f,       // 10mm/sec minimum for blending
-    .blend_jerk_factor = 0.6f,         // Reduce jerk for blended paths
-    .lookahead_blocks = 8              // 8 blocks lookahead
-};
-
 // Initialize S-curve system
 void s_curve_init(void)
 {
-    // Load settings from EEPROM if available
-    // For now, use defaults
-    memset(&s_curve_settings, 0, sizeof(s_curve_settings_t));
-    s_curve_settings.jerk_xy = DEFAULT_X_JERK;
-    s_curve_settings.jerk_z = DEFAULT_Z_JERK;
-    s_curve_settings.jerk_e = 120.0f;
-    s_curve_settings.jerk_multiplier = S_CURVE_JERK_MULTIPLIER;
-    s_curve_settings.corner_jerk_factor = S_CURVE_CORNER_JERK_FACTOR;
-    s_curve_settings.adaptive_jerk_enable = 1.0f;
-    s_curve_settings.min_jerk_velocity = 5.0f;
-    s_curve_settings.enable_advanced_features = true;
-    
-    // Junction velocity optimization settings
-    s_curve_settings.junction_velocity_factor = 1.2f;
-    s_curve_settings.junction_jerk_multiplier = 0.8f;
-    s_curve_settings.smooth_junction_angle = 2.617f; // 150 degrees
-    
-    // Path blending settings
-    s_curve_settings.enable_path_blending = true;
-    s_curve_settings.blend_tolerance = 0.02f;
-    s_curve_settings.max_blend_radius = 2.0f;
-    s_curve_settings.min_blend_velocity = 10.0f;
-    s_curve_settings.blend_jerk_factor = 0.6f;
-    s_curve_settings.lookahead_blocks = 8;
+    // S-curve settings are now managed by the global settings system
+    // No local initialization needed
 }
 
-// Get current settings
-s_curve_settings_t* s_curve_get_settings(void)
+// Get current settings - return pointer to global settings structure
+s_curve_runtime_settings_t* s_curve_get_settings(void)
 {
-    return &s_curve_settings;
+    // Map the settings structure to maintain compatibility
+    // Note: This requires careful management since the settings.s_curve structure
+    // doesn't have exactly the same layout as s_curve_runtime_settings_t
+    static s_curve_runtime_settings_t mapped_settings;
+    
+    // Map from settings.s_curve to s_curve_settings_t format
+    mapped_settings.jerk_xy = DEFAULT_X_JERK;  // Use axis-specific jerk from settings.axis[].jerk
+    mapped_settings.jerk_z = DEFAULT_Z_JERK;   // Use axis-specific jerk from settings.axis[].jerk
+    mapped_settings.jerk_e = 120.0f;           // Default for rotary/extruder
+    mapped_settings.jerk_multiplier = settings.s_curve.multiplier;
+    mapped_settings.corner_jerk_factor = settings.s_curve.corner_factor;
+    mapped_settings.adaptive_jerk_enable = settings.s_curve.adaptive_enable ? 1.0f : 0.0f;
+    mapped_settings.min_jerk_velocity = 5.0f;  // Fixed value for compatibility
+    mapped_settings.enable_advanced_features = true;
+    
+    // Junction optimization mapping
+    mapped_settings.junction_velocity_factor = settings.s_curve.junction_velocity_factor;
+    mapped_settings.junction_jerk_multiplier = settings.s_curve.junction_jerk_multiplier;
+    mapped_settings.smooth_junction_angle = settings.s_curve.junction_angle_threshold * (M_PI / 180.0f); // Convert degrees to radians
+    
+    // Path blending mapping
+    mapped_settings.enable_path_blending = settings.s_curve.path_blending_enable;
+    mapped_settings.blend_tolerance = settings.s_curve.path_blending_tolerance;
+    mapped_settings.max_blend_radius = settings.s_curve.path_blending_radius;
+    mapped_settings.min_blend_velocity = settings.s_curve.path_blending_min_velocity / 60.0f; // Convert mm/min to mm/sec
+    mapped_settings.blend_jerk_factor = settings.s_curve.path_blending_jerk_factor;
+    mapped_settings.lookahead_blocks = settings.s_curve.path_blending_lookahead;
+    
+    return &mapped_settings;
 }
 
 // Calculate 7-phase S-curve motion profile
@@ -369,13 +353,15 @@ bool s_curve_update_settings(uint8_t axis, float jerk)
     switch (axis) {
         case X_AXIS:
         case Y_AXIS:
-            s_curve_settings.jerk_xy = jerk;
+            settings.axis[X_AXIS].jerk = jerk * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
+            settings.axis[Y_AXIS].jerk = jerk * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
             break;
         case Z_AXIS:
-            s_curve_settings.jerk_z = jerk;
+            settings.axis[Z_AXIS].jerk = jerk * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
             break;
         default:
-            s_curve_settings.jerk_e = jerk;
+            // For other axes (E axis etc.), we don't have a direct setting
+            // This would need to be handled differently for systems with more axes
             break;
     }
     
@@ -389,7 +375,7 @@ bool s_curve_set_jerk_multiplier(float multiplier)
         return false;
     }
     
-    s_curve_settings.jerk_multiplier = multiplier;
+    settings.s_curve.multiplier = multiplier;
     return true;
 }
 
@@ -400,19 +386,19 @@ bool s_curve_set_corner_factor(float factor)
         return false;
     }
     
-    s_curve_settings.corner_jerk_factor = factor;
+    settings.s_curve.corner_factor = factor;
     return true;
 }
 
 // Advanced adaptive jerk calculation
 bool s_curve_adaptive_jerk_calculate(const plan_block_t *block, float *adaptive_jerk)
 {
-    if (!block || !adaptive_jerk || !s_curve_settings.enable_advanced_features) {
+    if (!block || !adaptive_jerk || !true) {
         return false;
     }
 
     // Start with base jerk value
-    float base_jerk = s_curve_settings.jerk_xy; // Default to XY
+    float base_jerk = settings.axis[X_AXIS].jerk / (60.0f * 60.0f * 60.0f); // Default to XY
     
     // Adjust based on move characteristics
     if (block->millimeters < 1.0f) {
@@ -426,7 +412,7 @@ bool s_curve_adaptive_jerk_calculate(const plan_block_t *block, float *adaptive_
     }
     
     // Apply global multiplier
-    *adaptive_jerk *= s_curve_settings.jerk_multiplier;
+    *adaptive_jerk *= settings.s_curve.multiplier;
     
     return true;
 }
@@ -434,118 +420,125 @@ bool s_curve_adaptive_jerk_calculate(const plan_block_t *block, float *adaptive_
 // Calculate junction jerk limit based on angle
 float s_curve_junction_jerk_limit(float junction_angle, float nominal_jerk)
 {
-    if (!s_curve_settings.enable_advanced_features) {
+    if (!true) {
         return nominal_jerk;
     }
 
     // Reduce jerk for sharp corners
     float angle_factor = 1.0f;
     if (junction_angle < M_PI_2) { // Less than 90 degrees
-        angle_factor = s_curve_settings.corner_jerk_factor;
+        angle_factor = settings.s_curve.corner_factor;
     }
     
-    return nominal_jerk * angle_factor * s_curve_settings.jerk_multiplier;
+    return nominal_jerk * angle_factor * settings.s_curve.multiplier;
 }
 
-// Real-time parameter adjustment
+// Real-time parameter adjustment - updates global settings
 bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
 {
     switch (param) {
         case SCurveParam_JerkXY:
+            // Note: Individual axis jerk is stored in settings.axis[].jerk
+            // This is a compatibility function - jerk should be set per axis
             if (value > 0.0f && value <= 1000.0f) {
-                s_curve_settings.jerk_xy = value;
+                // Update X and Y axis jerk settings
+                settings.axis[X_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
+                settings.axis[Y_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
                 return true;
             }
             break;
             
         case SCurveParam_JerkZ:
             if (value > 0.0f && value <= 1000.0f) {
-                s_curve_settings.jerk_z = value;
+                settings.axis[Z_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
                 return true;
             }
             break;
             
         case SCurveParam_JerkE:
+            // E axis handling for rotary/extruder
             if (value > 0.0f && value <= 1000.0f) {
-                s_curve_settings.jerk_e = value;
+#ifdef A_AXIS
+                settings.axis[A_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
+#endif
                 return true;
             }
             break;
             
         case SCurveParam_JerkMultiplier:
             if (value >= 0.1f && value <= 5.0f) {
-                s_curve_settings.jerk_multiplier = value;
+                settings.s_curve.multiplier = value;
                 return true;
             }
             break;
             
         case SCurveParam_CornerFactor:
             if (value >= 0.1f && value <= 1.0f) {
-                s_curve_settings.corner_jerk_factor = value;
+                settings.s_curve.corner_factor = value;
                 return true;
             }
             break;
             
         case SCurveParam_AdaptiveEnable:
-            s_curve_settings.adaptive_jerk_enable = (value > 0.0f) ? 1.0f : 0.0f;
+            settings.s_curve.adaptive_enable = (value > 0.0f);
             return true;
             
         case SCurveParam_JunctionVelocityFactor:
             if (value >= 0.5f && value <= 2.0f) {
-                s_curve_settings.junction_velocity_factor = value;
+                settings.s_curve.junction_velocity_factor = value;
                 return true;
             }
             break;
             
         case SCurveParam_JunctionJerkMultiplier:
             if (value >= 0.1f && value <= 2.0f) {
-                s_curve_settings.junction_jerk_multiplier = value;
+                settings.s_curve.junction_jerk_multiplier = value;
                 return true;
             }
             break;
             
         case SCurveParam_SmoothJunctionAngle:
             if (value >= 0.0f && value <= M_PI) {
-                s_curve_settings.smooth_junction_angle = value;
+                settings.s_curve.junction_angle_threshold = value * (180.0f / M_PI); // Convert radians to degrees
                 return true;
             }
             break;
             
         case SCurveParam_EnablePathBlending:
-            s_curve_settings.enable_path_blending = (value > 0.0f);
+            settings.s_curve.path_blending_enable = (value > 0.0f);
             return true;
             
         case SCurveParam_BlendTolerance:
             if (value >= 0.001f && value <= 1.0f) {
-                s_curve_settings.blend_tolerance = value;
+                settings.s_curve.path_blending_tolerance = value;
                 return true;
             }
             break;
             
         case SCurveParam_MaxBlendRadius:
             if (value >= 0.1f && value <= 10.0f) {
-                s_curve_settings.max_blend_radius = value;
+                settings.s_curve.path_blending_radius = value;
                 return true;
             }
             break;
             
         case SCurveParam_MinBlendVelocity:
             if (value >= 1.0f && value <= 100.0f) {
-                s_curve_settings.min_blend_velocity = value;
+                settings.s_curve.path_blending_min_velocity = value * 60.0f; // Convert mm/sec to mm/min
                 return true;
             }
             break;
             
         case SCurveParam_BlendJerkFactor:
             if (value >= 0.1f && value <= 1.0f) {
-                s_curve_settings.blend_jerk_factor = value;
+                settings.s_curve.path_blending_jerk_factor = value;
                 return true;
             }
             break;
             
         case SCurveParam_LookaheadBlocks:
-            if (value >= 3.0f && value <= 16.0f) {
-                s_curve_settings.lookahead_blocks = (uint8_t)value;
+            if (value >= 3 && value <= 16) {
+                settings.s_curve.path_blending_lookahead = (uint8_t)value;
                 return true;
             }
             break;
@@ -554,40 +547,45 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
     return false;
 }
 
-// Get parameter value
+// Get parameter value from global settings
 float s_curve_get_parameter(s_curve_param_t param)
 {
     switch (param) {
         case SCurveParam_JerkXY:
-            return s_curve_settings.jerk_xy;
+            // Return X-axis jerk converted from mm/min³ to mm/sec³
+            return settings.axis[X_AXIS].jerk / (60.0f * 60.0f * 60.0f);
         case SCurveParam_JerkZ:
-            return s_curve_settings.jerk_z;
+            return settings.axis[Z_AXIS].jerk / (60.0f * 60.0f * 60.0f);
         case SCurveParam_JerkE:
-            return s_curve_settings.jerk_e;
+#ifdef A_AXIS
+            return settings.axis[A_AXIS].jerk / (60.0f * 60.0f * 60.0f);
+#else
+            return 120.0f; // Default value
+#endif
         case SCurveParam_JerkMultiplier:
-            return s_curve_settings.jerk_multiplier;
+            return settings.s_curve.multiplier;
         case SCurveParam_CornerFactor:
-            return s_curve_settings.corner_jerk_factor;
+            return settings.s_curve.corner_factor;
         case SCurveParam_AdaptiveEnable:
-            return s_curve_settings.adaptive_jerk_enable;
+            return settings.s_curve.adaptive_enable ? 1.0f : 0.0f;
         case SCurveParam_JunctionVelocityFactor:
-            return s_curve_settings.junction_velocity_factor;
+            return settings.s_curve.junction_velocity_factor;
         case SCurveParam_JunctionJerkMultiplier:
-            return s_curve_settings.junction_jerk_multiplier;
+            return settings.s_curve.junction_jerk_multiplier;
         case SCurveParam_SmoothJunctionAngle:
-            return s_curve_settings.smooth_junction_angle;
+            return settings.s_curve.junction_angle_threshold * (M_PI / 180.0f); // Convert degrees to radians
         case SCurveParam_EnablePathBlending:
-            return s_curve_settings.enable_path_blending ? 1.0f : 0.0f;
+            return settings.s_curve.path_blending_enable ? 1.0f : 0.0f;
         case SCurveParam_BlendTolerance:
-            return s_curve_settings.blend_tolerance;
+            return settings.s_curve.path_blending_tolerance;
         case SCurveParam_MaxBlendRadius:
-            return s_curve_settings.max_blend_radius;
+            return settings.s_curve.path_blending_radius;
         case SCurveParam_MinBlendVelocity:
-            return s_curve_settings.min_blend_velocity;
+            return settings.s_curve.path_blending_min_velocity / 60.0f; // Convert mm/min to mm/sec
         case SCurveParam_BlendJerkFactor:
-            return s_curve_settings.blend_jerk_factor;
+            return settings.s_curve.path_blending_jerk_factor;
         case SCurveParam_LookaheadBlocks:
-            return (float)s_curve_settings.lookahead_blocks;
+            return (float)settings.s_curve.path_blending_lookahead;
         default:
             return 0.0f;
     }
@@ -603,28 +601,28 @@ float s_curve_calculate_junction_velocity_limit(float junction_angle,
                                                float next_velocity,
                                                float jerk_limit)
 {
-    if (!s_curve_settings.enable_advanced_features) {
+    if (!true) {
         return min(current_velocity, next_velocity);
     }
     
     // Base velocity limit from geometry
-    float velocity_limit = min(current_velocity, next_velocity) * s_curve_settings.junction_velocity_factor;
+    float velocity_limit = min(current_velocity, next_velocity) * settings.s_curve.junction_velocity_factor;
     
     // Apply jerk-based velocity limit for S-curve
-    float junction_jerk = jerk_limit * s_curve_settings.junction_jerk_multiplier;
+    float junction_jerk = jerk_limit * settings.s_curve.junction_jerk_multiplier;
     
     // For sharp corners, reduce velocity more aggressively
-    if (junction_angle < s_curve_settings.smooth_junction_angle) {
-        float angle_factor = junction_angle / s_curve_settings.smooth_junction_angle;
+    if (junction_angle < (settings.s_curve.junction_angle_threshold * M_PI / 180.0f)) {
+        float angle_factor = junction_angle / (settings.s_curve.junction_angle_threshold * M_PI / 180.0f);
         velocity_limit *= (0.5f + 0.5f * angle_factor); // Scale from 50% to 100%
     }
     
     // S-curve specific jerk limit consideration
     // For smooth S-curve transitions, we need to ensure jerk limits are respected
-    float jerk_velocity_limit = sqrtf(junction_jerk * s_curve_settings.blend_tolerance);
+    float jerk_velocity_limit = sqrtf(junction_jerk * settings.s_curve.path_blending_tolerance);
     velocity_limit = min(velocity_limit, jerk_velocity_limit);
     
-    return max(velocity_limit, s_curve_settings.min_jerk_velocity);
+    return max(velocity_limit, 5.0f);
 }
 
 // Optimize junction velocity for S-curve motion
@@ -632,27 +630,27 @@ bool s_curve_optimize_junction_velocity(s_curve_junction_t *junction,
                                        const plan_block_t *current_block,
                                        const plan_block_t *next_block)
 {
-    if (!junction || !current_block || !next_block || !s_curve_settings.enable_advanced_features) {
+    if (!junction || !current_block || !next_block || !true) {
         return false;
     }
     
     // Calculate junction velocity limit with S-curve awareness
-    float base_jerk = s_curve_settings.jerk_xy; // Default to XY jerk
+    float base_jerk = settings.axis[X_AXIS].jerk / (60.0f * 60.0f * 60.0f); // Default to XY jerk
     
     // Apply adaptive jerk if enabled
-    if (s_curve_settings.adaptive_jerk_enable > 0.0f) {
+    if (settings.s_curve.adaptive_enable > 0.0f) {
         // Reduce jerk for short moves
         if (current_block->millimeters < 1.0f || next_block->millimeters < 1.0f) {
             base_jerk *= 0.7f;
         }
         // Increase jerk for long straight moves
         else if (current_block->millimeters > 5.0f && next_block->millimeters > 5.0f && 
-                 junction->junction_angle > s_curve_settings.smooth_junction_angle) {
+                 junction->junction_angle > (settings.s_curve.junction_angle_threshold * M_PI / 180.0f)) {
             base_jerk *= 1.3f;
         }
     }
     
-    junction->jerk_limit = base_jerk * s_curve_settings.jerk_multiplier;
+    junction->jerk_limit = base_jerk * settings.s_curve.multiplier;
     
     // Calculate optimized junction velocity
     float current_velocity = sqrtf(current_block->entry_speed_sqr);
@@ -662,8 +660,8 @@ bool s_curve_optimize_junction_velocity(s_curve_junction_t *junction,
         junction->junction_angle, current_velocity, next_velocity, junction->jerk_limit);
     
     // Enable blending if conditions are met
-    if (s_curve_settings.enable_path_blending && 
-        junction->optimal_junction_velocity >= s_curve_settings.min_blend_velocity &&
+    if (settings.s_curve.path_blending_enable && 
+        junction->optimal_junction_velocity >= (settings.s_curve.path_blending_min_velocity / 60.0f) &&
         junction->junction_angle > M_PI_4) { // > 45 degrees
         
         junction->enable_blending = true;
@@ -680,7 +678,7 @@ bool s_curve_validate_junction_transition(const s_curve_junction_t *junction,
                                          float current_acceleration,
                                          float next_acceleration)
 {
-    if (!junction || !s_curve_settings.enable_advanced_features) {
+    if (!junction || !true) {
         return true; // Default to valid if not using advanced features
     }
     
@@ -702,13 +700,13 @@ bool s_curve_calculate_blend_radius(const plan_block_t *current,
                                    float junction_angle,
                                    float *blend_radius)
 {
-    if (!current || !next || !blend_radius || !s_curve_settings.enable_path_blending) {
+    if (!current || !next || !blend_radius || !settings.s_curve.path_blending_enable) {
         return false;
     }
     
     // Calculate blend radius based on velocity, jerk limits and geometry
     float velocity = min(sqrtf(current->entry_speed_sqr), sqrtf(next->max_entry_speed_sqr));
-    float jerk_limit = s_curve_settings.jerk_xy * s_curve_settings.blend_jerk_factor;
+    float jerk_limit = settings.axis[X_AXIS].jerk / (60.0f * 60.0f * 60.0f) * settings.s_curve.path_blending_jerk_factor;
     
     // Geometric constraint on blend radius
     float min_segment_length = min(current->millimeters, next->millimeters);
@@ -719,11 +717,11 @@ bool s_curve_calculate_blend_radius(const plan_block_t *current,
     
     // Angle-based constraint
     float sin_half_angle = sinf(junction_angle * 0.5f);
-    float max_radius_angle = s_curve_settings.blend_tolerance / sin_half_angle;
+    float max_radius_angle = settings.s_curve.path_blending_tolerance / sin_half_angle;
     
     // Take minimum of all constraints
     *blend_radius = min(min(max_radius_geometric, max_radius_jerk), 
-                       min(max_radius_angle, s_curve_settings.max_blend_radius));
+                       min(max_radius_angle, settings.s_curve.path_blending_radius));
     
     return *blend_radius > 0.001f; // Valid if radius > 1 micron
 }
@@ -796,7 +794,7 @@ bool s_curve_analyze_lookahead(s_curve_lookahead_t *lookahead)
             // Simplified junction angle calculation (would need proper vector math)
             junction->junction_angle = M_PI_2; // Default to 90 degrees
             
-            if (junction->junction_angle < s_curve_settings.smooth_junction_angle) {
+            if (junction->junction_angle < (settings.s_curve.junction_angle_threshold * M_PI / 180.0f)) {
                 lookahead->has_sharp_corners = true;
             }
             
@@ -829,14 +827,14 @@ bool s_curve_optimize_lookahead_sequence(s_curve_lookahead_t *lookahead)
     }
     
     // Apply path blending if enabled
-    if (s_curve_settings.enable_path_blending) {
+    if (settings.s_curve.path_blending_enable) {
         s_curve_blend_settings_t blend_settings = {
             .enabled = true,
-            .tolerance = s_curve_settings.blend_tolerance,
-            .max_blend_radius = s_curve_settings.max_blend_radius,
-            .min_blend_velocity = s_curve_settings.min_blend_velocity,
-            .blend_jerk_factor = s_curve_settings.blend_jerk_factor,
-            .lookahead_blocks = s_curve_settings.lookahead_blocks
+            .tolerance = settings.s_curve.path_blending_tolerance,
+            .max_blend_radius = settings.s_curve.path_blending_radius,
+            .min_blend_velocity = (settings.s_curve.path_blending_min_velocity / 60.0f),
+            .blend_jerk_factor = settings.s_curve.path_blending_jerk_factor,
+            .lookahead_blocks = settings.s_curve.path_blending_lookahead
         };
         
         return s_curve_blend_path_segments(lookahead->blocks, lookahead->block_count, &blend_settings);
@@ -854,12 +852,12 @@ s_curve_blend_settings_t* s_curve_get_blend_settings(void)
 {
     static s_curve_blend_settings_t blend_settings;
     
-    blend_settings.enabled = s_curve_settings.enable_path_blending;
-    blend_settings.tolerance = s_curve_settings.blend_tolerance;
-    blend_settings.max_blend_radius = s_curve_settings.max_blend_radius;
-    blend_settings.min_blend_velocity = s_curve_settings.min_blend_velocity;
-    blend_settings.blend_jerk_factor = s_curve_settings.blend_jerk_factor;
-    blend_settings.lookahead_blocks = s_curve_settings.lookahead_blocks;
+    blend_settings.enabled = settings.s_curve.path_blending_enable;
+    blend_settings.tolerance = settings.s_curve.path_blending_tolerance;
+    blend_settings.max_blend_radius = settings.s_curve.path_blending_radius;
+    blend_settings.min_blend_velocity = (settings.s_curve.path_blending_min_velocity / 60.0f);
+    blend_settings.blend_jerk_factor = settings.s_curve.path_blending_jerk_factor;
+    blend_settings.lookahead_blocks = settings.s_curve.path_blending_lookahead;
     
     return &blend_settings;
 }
@@ -868,7 +866,7 @@ s_curve_blend_settings_t* s_curve_get_blend_settings(void)
 bool s_curve_set_blend_tolerance(float tolerance)
 {
     if (tolerance >= 0.001f && tolerance <= 1.0f) {
-        s_curve_settings.blend_tolerance = tolerance;
+        settings.s_curve.path_blending_tolerance = tolerance;
         return true;
     }
     return false;
@@ -878,7 +876,7 @@ bool s_curve_set_blend_tolerance(float tolerance)
 bool s_curve_set_blend_jerk_factor(float factor)
 {
     if (factor >= 0.1f && factor <= 1.0f) {
-        s_curve_settings.blend_jerk_factor = factor;
+        settings.s_curve.path_blending_jerk_factor = factor;
         return true;
     }
     return false;

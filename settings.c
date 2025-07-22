@@ -42,6 +42,9 @@
 #if SPINDLE_SYNC_ENABLE
 extern void st_spindle_sync_cfg (settings_t *settings, settings_changed_flags_t changed);
 #endif
+#if ENABLE_S_CURVE_ACCELERATION
+#include "s_curve.h"
+#endif
 
 settings_t settings;
 
@@ -1107,22 +1110,6 @@ static inline void set_axis_unit (const setting_detail_t *setting, const char *u
         strcpy((char *)setting->unit, unit);
 }
 
-#if N_AXIS > 3
-
-static status_code_t set_rotary_axes (setting_id_t id, uint_fast16_t int_value)
-{
-    settings.steppers.is_rotary.mask = (int_value << 3) & AXES_BITMASK;
-
-    return Status_OK;
-}
-
-static status_code_t set_rotary_wrap_axes (setting_id_t id, uint_fast16_t int_value)
-{
-    settings.steppers.rotary_wrap.mask = (int_value << 3) & AXES_BITMASK;
-
-    return Status_OK;
-}
-
 static status_code_t set_s_curve_adaptive_enable (setting_id_t id, uint_fast16_t int_value)
 {
     settings.s_curve.adaptive_enable = int_value != 0;
@@ -1142,6 +1129,22 @@ static status_code_t set_s_curve_path_blending_lookahead (setting_id_t id, uint_
         return Status_OK;
     }
     return Status_GcodeValueOutOfRange;
+}
+
+#if N_AXIS > 3
+
+static status_code_t set_rotary_axes (setting_id_t id, uint_fast16_t int_value)
+{
+    settings.steppers.is_rotary.mask = (int_value << 3) & AXES_BITMASK;
+
+    return Status_OK;
+}
+
+static status_code_t set_rotary_wrap_axes (setting_id_t id, uint_fast16_t int_value)
+{
+    settings.steppers.rotary_wrap.mask = (int_value << 3) & AXES_BITMASK;
+
+    return Status_OK;
 }
 
 static inline bool axis_is_rotary (uint_fast8_t axis_idx)

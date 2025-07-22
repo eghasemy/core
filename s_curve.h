@@ -95,7 +95,7 @@ typedef struct {
     float min_blend_velocity;      // Minimum velocity for blending (mm/sec)
     float blend_jerk_factor;       // Jerk factor for blended paths (0.1-1.0)
     uint8_t lookahead_blocks;      // Number of blocks for lookahead (3-16)
-} s_curve_settings_t;
+} s_curve_runtime_settings_t;
 
 // Function prototypes
 bool s_curve_calculate_profile(s_curve_profile_t *profile, float distance, 
@@ -113,7 +113,7 @@ bool s_curve_set_jerk_multiplier(float multiplier);
 bool s_curve_set_corner_factor(float factor);
 
 void s_curve_init(void);
-s_curve_settings_t* s_curve_get_settings(void);
+s_curve_runtime_settings_t* s_curve_get_settings(void);
 
 // M-code interface initialization  
 #if S_CURVE_ENABLE_MCODES
