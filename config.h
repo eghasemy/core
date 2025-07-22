@@ -192,6 +192,11 @@ or EMI triggering the related interrupt falsely or too many times.
 // EXPERIMENTAL OPTIONS
 
 #define ENABLE_PATH_BLENDING On // Enable S-curve aware path blending for smoother motion
+// Enable true 7-phase S-curve acceleration
+#define ENABLE_S_CURVE_ACCELERATION On
+#define S_CURVE_ENABLE_MCODES On
+#define S_CURVE_ADAPTIVE_JERK On
+
 
 #if !defined ENABLE_ACCELERATION_PROFILES || defined __DOXYGEN__
 #define ENABLE_ACCELERATION_PROFILES Off // Enable to allow G-Code changeable acceleration profiles.
