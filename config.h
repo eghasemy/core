@@ -202,21 +202,61 @@ or EMI triggering the related interrupt falsely or too many times.
 #endif
 
 /*! \def ENABLE_S_CURVE_ACCELERATION
-\brief Enhanced S-curve acceleration with optimized parameters for STM32F401.
-When enabled, provides smoother motion profiles with jerk-limited acceleration
-specifically optimized for boards with FPU like the FlexiHAL (STM32F401).
+\brief True 7-phase S-curve acceleration with runtime adjustable parameters.
+When enabled, provides the most advanced motion profiles available with:
+- True 7-phase motion profiles (jerk-up, accel, jerk-down, cruise, decel-jerk-up, decel, decel-jerk-down)
+- Runtime adjustable jerk parameters via M-codes (M204, M205, M206, M207, M208, M209)
+- Adaptive jerk control based on motion complexity
+- Advanced cornering algorithms with junction velocity optimization
+- Real-time parameter adjustment during motion
+- Performance monitoring and auto-tuning capabilities
 */
 #if !defined ENABLE_S_CURVE_ACCELERATION || defined __DOXYGEN__
-#define ENABLE_S_CURVE_ACCELERATION On // Enable enhanced S-curve acceleration features for STM32F401 optimization.
+#define ENABLE_S_CURVE_ACCELERATION On // Enable true 7-phase S-curve acceleration with advanced features.
 #endif
 
 /*! \def S_CURVE_JERK_MULTIPLIER
 \brief S-curve jerk multiplier for fine-tuning acceleration profiles.
 Higher values provide more aggressive acceleration, lower values provide smoother motion.
 Recommended range: 0.8 - 1.5 for most applications.
+Can be adjusted at runtime via M206 M<multiplier> command.
 */
 #if !defined S_CURVE_JERK_MULTIPLIER || defined __DOXYGEN__
-#define S_CURVE_JERK_MULTIPLIER 1.0f // Jerk multiplier for S-curve acceleration tuning.
+#define S_CURVE_JERK_MULTIPLIER 1.0f // Default jerk multiplier for S-curve acceleration tuning.
+#endif
+
+/*! \def S_CURVE_ENABLE_MCODES
+\brief Enable M-code handlers for real-time S-curve parameter adjustment.
+Enables M204, M205, M206, M207, M208, M209 commands for controlling:
+- M204: Acceleration settings (P=XY, R=retract, T=Z)
+- M205: Jerk settings (X=XY, Z=Z, E=extruder, J=junction)
+- M206: Advanced S-curve parameters (M=multiplier, C=corner_factor, A=adaptive)
+- M207: Report current S-curve parameters
+- M208: Reset S-curve parameters to defaults  
+- M209: Set S-curve profiles (S=type, V=value)
+*/
+#if !defined S_CURVE_ENABLE_MCODES || defined __DOXYGEN__
+#define S_CURVE_ENABLE_MCODES On // Enable M-code handlers for S-curve control.
+#endif
+
+/*! \def S_CURVE_ADAPTIVE_JERK
+\brief Enable adaptive jerk control based on motion characteristics.
+When enabled, jerk values are automatically adjusted based on:
+- Move distance (short moves use lower jerk for precision)
+- Junction angles (sharp corners use reduced jerk)
+- Motion complexity (simple moves can use higher jerk)
+*/
+#if !defined S_CURVE_ADAPTIVE_JERK || defined __DOXYGEN__
+#define S_CURVE_ADAPTIVE_JERK On // Enable adaptive jerk control.
+#endif
+
+/*! \def S_CURVE_CORNER_JERK_FACTOR
+\brief Default corner jerk reduction factor (0.1 - 1.0).
+Controls how much jerk is reduced in sharp corners.
+0.7 = 30% jerk reduction in corners, 1.0 = no reduction.
+*/
+#if !defined S_CURVE_CORNER_JERK_FACTOR || defined __DOXYGEN__
+#define S_CURVE_CORNER_JERK_FACTOR 0.7f // Default corner jerk reduction factor.
 #endif
 
 // -
@@ -2144,33 +2184,38 @@ G90
 ///@}
 
 /*! @name 22x - Setting_AxisJerk
-S-curve acceleration jerk values optimized for STM32F401 with FPU.
+S-curve acceleration jerk values optimized for true 7-phase implementation.
+These are default values that can be adjusted at runtime via M205 commands or settings.
 Higher values provide more aggressive acceleration while maintaining smooth motion.
+Recommended ranges:
+- XY axes: 100-300 mm/sec³ (depending on machine rigidity)
+- Z axis: 50-150 mm/sec³ (lower for precision, higher for speed)
+- Rotary axes: 80-200 mm/sec³ (balanced for rotational motion)
 */
 ///@{
 #if !defined DEFAULT_X_JERK|| defined __DOXYGEN__
-#define DEFAULT_X_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
+#define DEFAULT_X_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X
 #endif
 #if !defined DEFAULT_Y_JERK|| defined __DOXYGEN__
-#define DEFAULT_Y_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
+#define DEFAULT_Y_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X (uses XY value)
 #endif
 #if !defined DEFAULT_Z_JERK || defined __DOXYGEN__
-#define DEFAULT_Z_JERK 80.0f // mm/sec^3 - Lower for Z-axis precision
+#define DEFAULT_Z_JERK 80.0f // mm/sec^3 - Runtime adjustable via M205 Z
 #endif
 #if (defined A_AXIS && !defined DEFAULT_A_JERK) || defined __DOXYGEN__
-#define DEFAULT_A_JERK 120.0f // mm/sec^3 - Optimized for rotational axes
+#define DEFAULT_A_JERK 120.0f // mm/sec^3 - Runtime adjustable via M205 E
 #endif
 #if (defined B_AXIS && !defined DEFAULT_B_JERK) || defined __DOXYGEN__
-#define DEFAULT_B_JERK 120.0f // mm/sec^3 - Optimized for rotational axes
+#define DEFAULT_B_JERK 120.0f // mm/sec^3 - Runtime adjustable via M205 E
 #endif
 #if (defined C_AXIS && !defined DEFAULT_C_JERK) || defined __DOXYGEN__
-#define DEFAULT_C_JERK 120.0f // mm/sec^3 - Optimized for rotational axes
+#define DEFAULT_C_JERK 120.0f // mm/sec^3 - Runtime adjustable via M205 E
 #endif
 #if (defined U_AXIS && !defined DEFAULT_U_JERK) || defined __DOXYGEN__
-#define DEFAULT_U_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
+#define DEFAULT_U_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X
 #endif
 #if (defined V_AXIS && !defined DEFAULT_V_JERK) || defined __DOXYGEN__
-#define DEFAULT_V_JERK 150.0f // mm/sec^3 - Optimized for STM32F401 S-curve acceleration
+#define DEFAULT_V_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X
 #endif
 ///@}
 

@@ -31,6 +31,15 @@
 #include "planner.h"
 #include "protocol.h"
 
+#if ENABLE_S_CURVE_ACCELERATION
+#include "s_curve.h"
+
+// Function declaration for M-code initialization
+#if S_CURVE_ENABLE_MCODES
+void s_curve_mcodes_init(void);
+#endif
+#endif
+
 #ifndef ROTARY_FIX
 #define ROTARY_FIX 0
 #endif
@@ -257,6 +266,14 @@ bool plan_reset (void)
     }
 
     plan_reset_buffer();
+
+#if ENABLE_S_CURVE_ACCELERATION
+    // Initialize S-curve acceleration system
+    s_curve_init();
+#if S_CURVE_ENABLE_MCODES
+    s_curve_mcodes_init();
+#endif
+#endif
 
     return true;
 }
