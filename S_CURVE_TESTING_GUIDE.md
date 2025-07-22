@@ -703,6 +703,148 @@ Before putting S-curve into production:
 3. **Performance meets requirements** ✓
 4. **No mechanical issues observed** ✓
 5. **Long-term test completed** (minimum 1 hour continuous operation) ✓
+6. **Final deceleration optimized** (no jog crawling) ✓
+
+## Test 12: Final Deceleration Optimization Test (New!)
+
+**Purpose:** Test and tune the fix for "crawling to stop" issue in jog motions
+
+**Duration:** 10 minutes
+
+**Problem:** Jog motions slow down excessively in the last 1-2mm, causing a "crawling" effect
+
+### Test 12A: Final Deceleration Comparison
+
+**File:** `test_final_deceleration.gcode` (included in test suite)
+
+**What it tests:**
+- Default vs aggressive vs conservative final deceleration settings
+- Various jog speeds and distances
+- Consistency across different motion types
+
+**Key observations to make:**
+1. **Time to complete final 2mm of motion**
+   - Should be consistent, not excessively slow
+   - No "crawling" effect
+
+2. **Smoothness vs speed trade-off**
+   - Aggressive settings: faster stopping, potentially less smooth
+   - Conservative settings: smoother but may still crawl
+
+3. **Sound and vibration**
+   - No grinding or excessive noise during final approach
+   - Minimal vibration or shaking
+
+### Test 12B: Manual Jog Testing
+
+**Setup:**
+```gcode
+M208                    ; Reset to defaults
+M212 V30.0 Q2.0 D1.0   ; Default final decel settings
+```
+
+**Procedure:**
+1. **Baseline test:**
+   ```
+   $J=X10 F1000    ; Jog 10mm at 1000 mm/min
+   ```
+   - Time the last 2mm of motion
+   - Note any "crawling" behavior
+
+2. **Increase final jerk multiplier:**
+   ```gcode
+   M212 Q2.5       ; Increase jerk multiplier
+   $J=X0 F1000     ; Return to start
+   M212 Q3.0       ; Increase more
+   $J=X10 F1000    ; Test again
+   M212 Q3.5       ; Increase more
+   $J=X0 F1000     ; Test return
+   ```
+
+3. **Adjust minimum stop velocity:**
+   ```gcode
+   M212 V50.0      ; Higher min stop velocity
+   $J=X10 F1000    ; Test jog
+   M212 V75.0      ; Even higher
+   $J=X0 F1000     ; Test return
+   ```
+
+4. **Fine-tune stop threshold:**
+   ```gcode
+   M212 D2.0       ; Larger stop threshold
+   $J=X10 F1000    ; Test jog
+   M212 D0.5       ; Smaller threshold
+   $J=X0 F1000     ; Test return
+   ```
+
+### Test 12C: Different Speed Validation
+
+Test the same settings at various speeds:
+
+```gcode
+; Optimal settings found from previous tests
+M212 V40.0 Q2.8 D1.5
+
+; Test range of speeds
+$J=X5 F2000      ; Very fast
+$J=X0 F2000      
+$J=Y5 F1000      ; Fast
+$J=Y0 F1000
+$J=Z2 F500       ; Medium
+$J=Z0 F500
+$J=X2 F200       ; Slow  
+$J=X0 F200
+$J=Y1 F100       ; Very slow
+$J=Y0 F100
+```
+
+### Results Analysis
+
+**Good final deceleration settings should show:**
+- Consistent timing for final approach regardless of speed
+- No "crawling" in last 1-2mm of motion
+- Smooth transition from normal to final deceleration
+- No overshoot or oscillation
+
+**If you still see crawling:**
+- Increase Q parameter (try 3.5-4.5)
+- Increase V parameter (try 60-100 mm/min)
+- Increase D parameter (try 2.0-3.0 mm)
+
+**If stopping is too abrupt:**
+- Decrease Q parameter (try 1.0-1.5)
+- Decrease V parameter (try 10-20 mm/min)
+- Decrease D parameter (try 0.2-0.8 mm)
+
+**Recommended settings for different machine types:**
+
+**Light/Fast Machines (3D printers, light CNCs):**
+```gcode
+M212 V50.0 Q3.0 D1.5
+```
+
+**Medium Machines (desktop CNCs, routers):**
+```gcode
+M212 V35.0 Q2.5 D1.2  
+```
+
+**Heavy Machines (mills, lathes):**
+```gcode
+M212 V25.0 Q2.0 D0.8
+```
+
+### Validation
+
+Once you find good settings, validate with real work:
+- Run actual jog sequences you commonly use
+- Test at speeds you typically use
+- Verify no regression in precision or quality
+- Save settings permanently using $ commands:
+  ```
+  $784=40.0    ; Min stop velocity
+  $785=2.8     ; Final jerk multiplier  
+  $786=1.5     ; Stop threshold distance
+  ```
 
 ## Conclusion
 

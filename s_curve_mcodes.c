@@ -43,7 +43,8 @@ typedef enum {
     MCode_SCurveReset = 208,            // M208 - Reset S-curve parameters to defaults
     MCode_SCurveProfile = 209,          // M209 - Set S-curve profile (adaptive, corner factor)
     MCode_JunctionOptimize = 210,       // M210 - Junction velocity optimization settings
-    MCode_PathBlending = 211            // M211 - Path blending configuration
+    MCode_PathBlending = 211,           // M211 - Path blending configuration
+    MCode_FinalDeceleration = 212       // M212 - Final deceleration optimization settings
 } s_curve_mcode_t;
 
 // Forward declarations
@@ -77,6 +78,7 @@ static user_mcode_type_t s_curve_mcode_check(user_mcode_t mcode)
         case MCode_SCurveProfile:
         case MCode_JunctionOptimize:
         case MCode_PathBlending:
+        case MCode_FinalDeceleration:
             return UserMCode_Normal;
         default:
             return UserMCode_Unsupported;
@@ -145,6 +147,14 @@ static status_code_t s_curve_mcode_validate(parser_block_t *gc_block)
             // M211: Path blending configuration  
             // S<enable> P<tolerance> R<max_radius> V<min_velocity> F<jerk_factor> L<lookahead_blocks>
             if (isnan(gc_block->values.s)) {
+                state = Status_GcodeValueWordMissing;
+            }
+            break;
+            
+        case MCode_FinalDeceleration:
+            // M212: Final deceleration optimization settings
+            // V<min_stop_velocity> Q<jerk_multiplier> D<stop_threshold_distance>
+            if (isnan(gc_block->values.v) && isnan(gc_block->values.q) && isnan(gc_block->values.d)) {
                 state = Status_GcodeValueWordMissing;
             }
             break;
@@ -402,6 +412,32 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
                 hal.stream.write(msg);
             } else {
                 hal.stream.write("[MSG:ERR: Invalid path blending values]" ASCII_EOL);
+            }
+            break;
+            
+        case MCode_FinalDeceleration:
+            // M212: Final deceleration optimization settings
+            // V<min_stop_velocity> Q<jerk_multiplier> D<stop_threshold_distance>
+            if (!isnan(gc_block->values.v)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_MinStopVelocity, gc_block->values.v);
+            }
+            if (!isnan(gc_block->values.q)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_FinalDecelJerkMultiplier, gc_block->values.q);
+            }
+            if (!isnan(gc_block->values.d)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_StopThresholdDistance, gc_block->values.d);
+            }
+            if (ok) {
+                hal.stream.write("[MSG:Final deceleration settings updated]" ASCII_EOL);
+                s_curve_settings_t *s_settings4 = s_curve_get_settings();
+                sprintf(msg, "[MSG:Min Stop Velocity: %.1f mm/min, Jerk Multiplier: %.1f]" ASCII_EOL, 
+                       s_settings4->min_stop_velocity, s_settings4->final_decel_jerk_multiplier);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Stop Threshold: %.1f mm]" ASCII_EOL, 
+                       s_settings4->stop_threshold_distance);
+                hal.stream.write(msg);
+            } else {
+                hal.stream.write("[MSG:ERR: Invalid final deceleration values]" ASCII_EOL);
             }
             break;
             

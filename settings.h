@@ -521,7 +521,10 @@ typedef enum {
     Setting_SCurvePathBlendingMinVelocity = 781,
     Setting_SCurvePathBlendingJerkFactor = 782,
     Setting_SCurvePathBlendingLookahead = 783,
-    // 784-789 reserved for future S-curve settings
+    Setting_SCurveMinStopVelocity = 784,
+    Setting_SCurveFinalDecelJerkMultiplier = 785,
+    Setting_SCurveStopThresholdDistance = 786,
+    // 787-789 reserved for future S-curve settings
 
 // Reserving settings in the range 800 - 899 for axis settings.
     Setting_AxisSettingsBase1 = 800,    // Reserved for driver/plugin settings
@@ -868,6 +871,10 @@ typedef struct {
     float path_blending_min_velocity;   // Minimum velocity for blending (mm/min)
     float path_blending_jerk_factor;    // Jerk factor for blending (0.1-1.0)
     uint8_t path_blending_lookahead;    // Lookahead blocks (3-16)
+    // Final deceleration optimization settings
+    float min_stop_velocity;            // Minimum velocity for S-curve deceleration (mm/min)
+    float final_decel_jerk_multiplier;  // Jerk multiplier for final deceleration (0.1-5.0)
+    float stop_threshold_distance;      // Distance from target to switch to rapid stop (mm)
 } s_curve_settings_t;
 
 typedef union {

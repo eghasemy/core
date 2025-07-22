@@ -53,6 +53,17 @@ bool s_curve_calculate_profile(s_curve_profile_t *profile, float distance,
                               float initial_velocity, float final_velocity,
                               float max_velocity, float acceleration, float jerk)
 {
+    return s_curve_calculate_profile_optimized(profile, distance, initial_velocity, 
+                                             final_velocity, max_velocity, acceleration, 
+                                             jerk, false);
+}
+
+// Calculate 7-phase S-curve motion profile with final deceleration optimization
+bool s_curve_calculate_profile_optimized(s_curve_profile_t *profile, float distance, 
+                                        float initial_velocity, float final_velocity,
+                                        float max_velocity, float acceleration, float jerk,
+                                        bool is_jog_motion)
+{
     if (!profile || distance <= 0.0f || acceleration <= 0.0f || jerk <= 0.0f) {
         return false;
     }
@@ -69,6 +80,21 @@ bool s_curve_calculate_profile(s_curve_profile_t *profile, float distance,
     profile->current_phase = SCurvePhase_JerkUp;
     profile->time_in_phase = 0.0f;
 
+    // Get S-curve settings for optimization
+    s_curve_settings_t *s_settings = s_curve_get_settings();
+    
+    // Apply final deceleration optimization for jog motions or when ending at zero velocity
+    bool optimize_final_decel = is_jog_motion || (final_velocity < 0.1f);
+    float final_jerk_multiplier = 1.0f;
+    float min_stop_velocity = 0.0f;
+    float stop_threshold = 0.0f;
+    
+    if (optimize_final_decel && s_settings) {
+        final_jerk_multiplier = s_settings->final_decel_jerk_multiplier;
+        min_stop_velocity = s_settings->min_stop_velocity / 60.0f; // Convert mm/min to mm/sec
+        stop_threshold = s_settings->stop_threshold_distance;
+    }
+
     // Calculate phase durations for acceleration
     float t_jerk = acceleration / jerk;  // Time to reach max acceleration
     profile->t_jerk_up = t_jerk;
@@ -84,10 +110,44 @@ bool s_curve_calculate_profile(s_curve_profile_t *profile, float distance,
     float dv_accel = v_target - v_jerk_up - one_half * jerk * t_jerk * t_jerk;
     profile->t_accel = max(0.0f, dv_accel / acceleration);
     
-    // Calculate deceleration phases (mirror of acceleration)
-    profile->t_decel_jerk_up = t_jerk;
-    profile->t_decel = profile->t_accel;  // Symmetric for now
-    profile->t_decel_jerk_down = t_jerk;
+    // Calculate deceleration phases with optimization
+    if (optimize_final_decel && final_velocity < min_stop_velocity) {
+        // Use optimized final deceleration
+        float final_jerk = jerk * final_jerk_multiplier;
+        float final_t_jerk = acceleration / final_jerk;
+        
+        // Calculate if we need to use threshold-based stopping
+        float total_accel_distance = 0.0f;
+        
+        // Estimate acceleration distance
+        total_accel_distance = initial_velocity * (profile->t_jerk_up + profile->t_accel + profile->t_jerk_down) +
+                              0.5f * acceleration * (profile->t_accel * profile->t_accel + 
+                              profile->t_jerk_up * profile->t_jerk_up + profile->t_jerk_down * profile->t_jerk_down);
+        
+        float remaining_distance = distance - total_accel_distance;
+        
+        if (remaining_distance > stop_threshold && stop_threshold > 0.0f) {
+            // Use normal deceleration until threshold, then rapid stop
+            float cruise_distance = remaining_distance - stop_threshold;
+            profile->d_cruise = max(0.0f, cruise_distance);
+            profile->t_cruise = profile->d_cruise / max_velocity;
+            
+            // Optimized final deceleration phases
+            profile->t_decel_jerk_up = final_t_jerk * 0.5f;  // Shorter jerk-up for final phase
+            profile->t_decel = 0.1f;  // Very short constant deceleration
+            profile->t_decel_jerk_down = final_t_jerk * 0.3f;  // Much shorter final jerk-down
+        } else {
+            // Direct optimized deceleration
+            profile->t_decel_jerk_up = final_t_jerk * 0.6f;
+            profile->t_decel = profile->t_accel * 0.5f;  // Shorter deceleration phase
+            profile->t_decel_jerk_down = final_t_jerk * 0.4f;  // Much shorter final phase
+        }
+    } else {
+        // Standard symmetric deceleration
+        profile->t_decel_jerk_up = t_jerk;
+        profile->t_decel = profile->t_accel;
+        profile->t_decel_jerk_down = t_jerk;
+    }
     
     // Calculate phase distances using optimized FPU calculations
     
@@ -509,6 +569,27 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
                 return true;
             }
             break;
+            
+        case SCurveParam_MinStopVelocity:
+            if (value >= 0.1f && value <= 1000.0f) {
+                settings.s_curve.min_stop_velocity = value;
+                return true;
+            }
+            break;
+            
+        case SCurveParam_FinalDecelJerkMultiplier:
+            if (value >= 0.1f && value <= 5.0f) {
+                settings.s_curve.final_decel_jerk_multiplier = value;
+                return true;
+            }
+            break;
+            
+        case SCurveParam_StopThresholdDistance:
+            if (value >= 0.0f && value <= 50.0f) {
+                settings.s_curve.stop_threshold_distance = value;
+                return true;
+            }
+            break;
     }
     
     return false;
@@ -553,6 +634,12 @@ float s_curve_get_parameter(s_curve_param_t param)
             return settings.s_curve.path_blending_jerk_factor;
         case SCurveParam_LookaheadBlocks:
             return (float)settings.s_curve.path_blending_lookahead;
+        case SCurveParam_MinStopVelocity:
+            return settings.s_curve.min_stop_velocity;
+        case SCurveParam_FinalDecelJerkMultiplier:
+            return settings.s_curve.final_decel_jerk_multiplier;
+        case SCurveParam_StopThresholdDistance:
+            return settings.s_curve.stop_threshold_distance;
         default:
             return 0.0f;
     }

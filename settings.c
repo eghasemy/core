@@ -369,7 +369,10 @@ PROGMEM const settings_t defaults = {
     .s_curve.path_blending_radius = DEFAULT_S_CURVE_PATH_BLENDING_RADIUS,
     .s_curve.path_blending_min_velocity = DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY,
     .s_curve.path_blending_jerk_factor = DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR,
-    .s_curve.path_blending_lookahead = DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD
+    .s_curve.path_blending_lookahead = DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD,
+    .s_curve.min_stop_velocity = DEFAULT_S_CURVE_MIN_STOP_VELOCITY,
+    .s_curve.final_decel_jerk_multiplier = DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER,
+    .s_curve.stop_threshold_distance = DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE
 };
 
 static bool group_is_available (const setting_group_detail_t *group)
@@ -1345,6 +1348,27 @@ static status_code_t set_float (setting_id_t setting, float value)
                 status = Status_GcodeValueOutOfRange;
             break;
 
+        case Setting_SCurveMinStopVelocity:
+            if(value >= 0.1f && value <= 1000.0f)
+                settings.s_curve.min_stop_velocity = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveFinalDecelJerkMultiplier:
+            if(value >= 0.1f && value <= 5.0f)
+                settings.s_curve.final_decel_jerk_multiplier = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveStopThresholdDistance:
+            if(value >= 0.0f && value <= 50.0f)
+                settings.s_curve.stop_threshold_distance = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
         default:
             break;
     }
@@ -1565,6 +1589,18 @@ static float get_float (setting_id_t setting)
 
         case Setting_SCurvePathBlendingJerkFactor:
             value = settings.s_curve.path_blending_jerk_factor;
+            break;
+
+        case Setting_SCurveMinStopVelocity:
+            value = settings.s_curve.min_stop_velocity;
+            break;
+
+        case Setting_SCurveFinalDecelJerkMultiplier:
+            value = settings.s_curve.final_decel_jerk_multiplier;
+            break;
+
+        case Setting_SCurveStopThresholdDistance:
+            value = settings.s_curve.stop_threshold_distance;
             break;
 
         default:
@@ -2347,6 +2383,9 @@ PROGMEM static const setting_detail_t setting_detail[] = {
      { Setting_SCurvePathBlendingMinVelocity, Group_SCurve, "Path blending min velocity", "mm/min", Format_Decimal, "####0.0", "1.0", "10000.0", Setting_IsExtendedFn, set_float, get_float, NULL },
      { Setting_SCurvePathBlendingJerkFactor, Group_SCurve, "Path blending jerk factor", NULL, Format_Decimal, "#0.0", "0.1", "1.0", Setting_IsExtendedFn, set_float, get_float, NULL },
      { Setting_SCurvePathBlendingLookahead, Group_SCurve, "Path blending lookahead blocks", NULL, Format_Int8, "##0", "3", "16", Setting_IsExtendedFn, set_s_curve_path_blending_lookahead, get_int, NULL },
+     { Setting_SCurveMinStopVelocity, Group_SCurve, "Min velocity for S-curve stop", "mm/min", Format_Decimal, "##0.0", "0.1", "1000.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveFinalDecelJerkMultiplier, Group_SCurve, "Final deceleration jerk multiplier", NULL, Format_Decimal, "#0.0", "0.1", "5.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveStopThresholdDistance, Group_SCurve, "Stop threshold distance", "mm", Format_Decimal, "##0.0", "0.0", "50.0", Setting_IsExtendedFn, set_float, get_float, NULL },
      { Setting_MotorWarningsEnable, Group_Stepper, "Motor warning inputs enable", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_warning_enable, NULL, is_setting_available },
      { Setting_MotorWarningsInvert, Group_Stepper, "Invert motor warning inputs", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_warning_invert, NULL, is_setting_available },
      { Setting_MotorFaultsEnable, Group_Stepper, "Motor fault inputs enable", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_fault_enable, NULL, is_setting_available },

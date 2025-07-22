@@ -189,6 +189,44 @@ M206 M0.9 C0.5 A1
 - 0 = Fixed jerk values
 - 1 = Automatic adjustment based on move characteristics
 
+### Final Deceleration Settings (New!)
+
+These settings address the "crawling to stop" issue in jog motions:
+
+**M212 Command - Final Deceleration Optimization:**
+```gcode
+M212 V30 Q2.0 D1.0
+```
+
+**Parameters:**
+- **V (Min Stop Velocity):** Minimum velocity for S-curve deceleration (mm/min)
+  - Below this velocity, linear deceleration is used for faster stopping
+  - Range: 0.1-1000.0 mm/min
+  - Default: 30.0 mm/min
+
+- **Q (Final Decel Jerk Multiplier):** Jerk multiplier for final deceleration phase
+  - Higher values provide faster stopping
+  - Range: 0.1-5.0
+  - Default: 2.0
+
+- **D (Stop Threshold Distance):** Distance from target to switch to rapid stopping (mm)
+  - Set to 0.0 to disable threshold-based stopping
+  - Range: 0.0-50.0 mm
+  - Default: 1.0 mm
+
+**Console Settings (Persistent):**
+```
+$784=30.0    ; Min stop velocity (mm/min)
+$785=2.0     ; Final decel jerk multiplier
+$786=1.0     ; Stop threshold distance (mm)
+```
+
+**When to Adjust:**
+- If jog motions "crawl" to a stop: Increase Q parameter (try 3.0-4.0)
+- If stopping is too abrupt: Decrease Q parameter (try 1.0-1.5)
+- For very precise applications: Decrease V parameter (try 10-20 mm/min)
+- For faster jogging: Increase V parameter (try 50-100 mm/min)
+
 ## Step-by-Step Tuning Process
 
 ### Step 1: Start Conservative
@@ -276,6 +314,64 @@ M206 M0.8 C0.5
 ### Machine Weight Impact
 - **Light machines:** Can handle higher jerk values
 - **Heavy machines:** Need lower jerk values to prevent vibration
+
+## Troubleshooting Common Issues
+
+### Issue: Jog Motions "Crawl" to Stop
+
+**Symptoms:** During jogging, the machine slows down excessively in the last 1-2mm and "crawls" to the final position.
+
+**Solution 1 - Immediate Fix:**
+```gcode
+M212 Q3.0 V50.0 D2.0    ; Increase final decel aggressiveness
+```
+
+**Solution 2 - Fine Tuning:**
+```gcode
+; Start with defaults
+M212 V30.0 Q2.0 D1.0
+
+; If still crawling, increase Q progressively:
+M212 Q2.5
+M212 Q3.0
+M212 Q3.5
+
+; Or increase min stop velocity:
+M212 V50.0
+M212 V75.0
+```
+
+**Solution 3 - Console Settings (Permanent):**
+```
+$785=3.0     ; Higher final jerk multiplier
+$784=50.0    ; Higher min stop velocity
+$786=2.0     ; Larger stop threshold
+```
+
+**What this does:**
+- Higher Q values make the final deceleration more aggressive
+- Higher V values switch to linear deceleration sooner
+- Higher D values trigger fast stopping earlier
+
+### Issue: Too Abrupt Stopping
+
+**Symptoms:** Jog motions stop too quickly, causing mechanical shock.
+
+**Solution:**
+```gcode
+M212 Q1.0 V15.0 D0.5    ; More gentle final deceleration
+```
+
+### Issue: Inconsistent Jerk Settings
+
+**Symptoms:** Different behavior at low vs high jerk settings.
+
+**Check Settings:**
+```gcode
+M207                    ; View all current parameters
+M212                    ; Check final decel settings
+$$                      ; Check axis jerk values ($800-$805)
+```
 
 ## Verification Commands
 

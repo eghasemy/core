@@ -597,6 +597,19 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     // Optimized S-curve calculation for STM32F446 FPU
     // Pre-calculate half jerk for efficiency: Vt = V0 + A0T + 1/2*jerk*T^2
     float half_jerk = 0.5f * block->jerk;
+    
+    // Apply final deceleration optimization for jog motions
+    if (block->condition.jog_motion) {
+        s_curve_settings_t *s_settings = s_curve_get_settings();
+        if (s_settings && s_settings->final_decel_jerk_multiplier > 1.0f) {
+            // Apply enhanced jerk for jog motions to reduce crawling
+            float enhanced_jerk = block->jerk * s_settings->final_decel_jerk_multiplier;
+            half_jerk = 0.5f * enhanced_jerk;
+            // Update the time calculation with enhanced jerk
+            time_to_max_accel = block->max_acceleration / enhanced_jerk;
+        }
+    }
+    
     float speed_after_jerkramp = half_jerk * time_to_max_accel * time_to_max_accel;   // unit: mm / min - velocity after one completed jerk ramp up
     float half_programmed_rate = 0.5f * block->programmed_rate;
 #else

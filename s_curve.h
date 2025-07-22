@@ -102,6 +102,11 @@ bool s_curve_calculate_profile(s_curve_profile_t *profile, float distance,
                               float initial_velocity, float final_velocity,
                               float max_velocity, float acceleration, float jerk);
 
+bool s_curve_calculate_profile_optimized(s_curve_profile_t *profile, float distance, 
+                                        float initial_velocity, float final_velocity,
+                                        float max_velocity, float acceleration, float jerk,
+                                        bool is_jog_motion);
+
 float s_curve_get_velocity_at_time(const s_curve_profile_t *profile, float time);
 float s_curve_get_acceleration_at_time(const s_curve_profile_t *profile, float time);
 float s_curve_get_distance_at_time(const s_curve_profile_t *profile, float time);
@@ -205,7 +210,10 @@ typedef enum {
     SCurveParam_MaxBlendRadius,
     SCurveParam_MinBlendVelocity,
     SCurveParam_BlendJerkFactor,
-    SCurveParam_LookaheadBlocks
+    SCurveParam_LookaheadBlocks,
+    SCurveParam_MinStopVelocity,
+    SCurveParam_FinalDecelJerkMultiplier,
+    SCurveParam_StopThresholdDistance
 } s_curve_param_t;
 
 bool s_curve_set_parameter_realtime(s_curve_param_t param, float value);

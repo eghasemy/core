@@ -348,6 +348,27 @@ Controls how much jerk is reduced in sharp corners.
 #define DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD 8 // Default path blending lookahead blocks.
 #endif
 
+/*! \def DEFAULT_S_CURVE_MIN_STOP_VELOCITY
+Default minimum velocity for S-curve deceleration (mm/min). Below this velocity, linear deceleration is used for faster stopping.
+*/
+#if !defined DEFAULT_S_CURVE_MIN_STOP_VELOCITY || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_MIN_STOP_VELOCITY 30.0f // Default minimum velocity for S-curve deceleration (mm/min).
+#endif
+
+/*! \def DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER
+Default jerk multiplier for final deceleration phase. Higher values provide faster stopping.
+*/
+#if !defined DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER 2.0f // Default final deceleration jerk multiplier.
+#endif
+
+/*! \def DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE
+Default distance from target to switch to rapid stopping (mm). Set to 0.0 to disable.
+*/
+#if !defined DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE 1.0f // Default stop threshold distance (mm).
+#endif
+
 // -
 
 // Enables code for debugging purposes. Not for general use and always in constant flux.
