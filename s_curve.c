@@ -493,9 +493,27 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_JerkMultiplier:
+            // Debug: Log all incoming values
+            {
+                char debug_msg[120];
+                sprintf(debug_msg, "[DEBUG:JerkMultiplier received value=%.6f, range check: %.6f>=0.1 && %.6f<=5.0]" ASCII_EOL, 
+                       value, value, value);
+                hal.stream.write(debug_msg);
+            }
             if (value >= 0.1f && value <= 5.0f) {
                 settings.s_curve.multiplier = value;
+                {
+                    char debug_msg[80];
+                    sprintf(debug_msg, "[DEBUG:JerkMultiplier set to %.6f]" ASCII_EOL, settings.s_curve.multiplier);
+                    hal.stream.write(debug_msg);
+                }
                 return true;
+            }
+            // Debug: Log validation failure
+            {
+                char debug_msg[80];
+                sprintf(debug_msg, "[DEBUG:JerkMultiplier validation failed, value=%.6f]" ASCII_EOL, value);
+                hal.stream.write(debug_msg);
             }
             return false; // Explicitly return false if validation fails
             

@@ -274,6 +274,9 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
         case MCode_SCurveAdvanced:
             // M206: Advanced S-curve parameters P<multiplier> Q<corner_factor> S<adaptive_enable>
             if (!isnan(gc_block->values.p)) {
+                char debug_msg[80];
+                sprintf(debug_msg, "[DEBUG:M206 P value=%.3f]" ASCII_EOL, gc_block->values.p);
+                hal.stream.write(debug_msg);
                 ok &= s_curve_set_parameter_realtime(SCurveParam_JerkMultiplier, gc_block->values.p);
             }
             if (!isnan(gc_block->values.q)) {
