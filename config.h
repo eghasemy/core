@@ -235,7 +235,7 @@ Can be adjusted at runtime via M206 M<multiplier> command.
 Enables M204, M205, M206, M207, M208, M209 commands for controlling:
 - M204: Acceleration settings (P=XY, R=retract, T=Z)
 - M205: Jerk settings (X=XY, Z=Z, E=extruder, J=junction)
-- M206: Advanced S-curve parameters (M=multiplier, C=corner_factor, A=adaptive)
+- M206: Advanced S-curve parameters (P=multiplier, Q=corner_factor, S=adaptive)
 - M207: Report current S-curve parameters
 - M208: Reset S-curve parameters to defaults  
 - M209: Set S-curve profiles (S=type, V=value)

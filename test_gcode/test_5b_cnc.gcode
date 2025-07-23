@@ -7,7 +7,7 @@ M208 G28 G90 G94
 ; CNC-optimized S-curve settings for testing
 M204 P8000 T4000    ; Aggressive acceleration for NEMA23/24
 M205 X400 Z200      ; Higher jerk values for CNC machines  
-M206 M1.2 C0.7 A1   ; Balanced S-curve settings
+M206 P1.2 Q0.7 S1   ; Balanced S-curve settings
 
 ; Test 1: Roughing operation simulation
 ; Rapid positioning with heavy cutting simulation

@@ -12,7 +12,7 @@ G54 G90 G94         ; Work coordinate system, absolute positioning
 ; Aluminum-optimized S-curve settings
 M204 P10000 T5000   ; Aggressive acceleration for aluminum
 M205 X500 Z250      ; High jerk values for responsive motion
-M206 M1.4 C0.8 A1   ; Aggressive motion parameters
+M206 P1.4 Q0.8 S1   ; Aggressive motion parameters
 M210 F1.5 J1.3 A90  ; Fast junction optimization
 M211 S1 P0.02 R3.0 V75 F0.8 L10  ; Optimized path blending
 M212 V60.0 Q3.0 D2.0 ; Quick positioning for aluminum

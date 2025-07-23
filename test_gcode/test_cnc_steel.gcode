@@ -12,7 +12,7 @@ G54 G90 G94         ; Work coordinate system, absolute positioning
 ; Steel-optimized S-curve settings (conservative)
 M204 P6000 T3000    ; Moderate acceleration to reduce cutting forces
 M205 X300 Z150      ; Conservative jerk to prevent chatter
-M206 M1.1 C0.6 A1   ; Smooth motion priority
+M206 P1.1 Q0.6 S1   ; Smooth motion priority
 M210 F1.2 J1.0 A120 ; Gentle junction handling
 M211 S1 P0.015 R2.0 V40 F0.6 L8  ; Careful path blending
 M212 V35.0 Q2.2 D1.2 ; Controlled positioning

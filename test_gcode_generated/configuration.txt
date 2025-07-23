@@ -1,0 +1,34 @@
+S-Curve Test G-Code Configuration
+=====================================
+
+Machine Travel Limits:
+- X-axis: 0 to 300.0mm
+- Y-axis: 0 to 300.0mm  
+- Z-axis: 0 to 150.0mm
+
+Safety Margins: 25mm
+Usable Ranges:
+- X: 25mm to 275.0mm
+- Y: 25mm to 275.0mm
+- Z: 5mm to 100mm
+
+Test Ranges:
+- Small: 75mm
+- Medium: 150mm
+- Large: 225mm
+
+Center Point: X150 Y150
+
+Generated Files:
+- test_1a_scurve_verification.gcode
+- test_1b_parameter_response.gcode
+- test_2a_jerk_optimization.gcode
+- test_3c_stress_long_moves.gcode
+- test_5a_aluminum_cutting.gcode
+
+Usage Instructions:
+1. Ensure your machine has the specified travel limits
+2. Set work coordinate system G54 to use the full travel envelope
+3. Verify safety margins are appropriate for your setup
+4. Run tests in order: 1a, 1b, 2a, 3c, 5a
+5. Document results in the testing guide

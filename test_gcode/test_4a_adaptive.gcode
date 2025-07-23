@@ -3,7 +3,7 @@
 
 M208 G28 G90 G94
 M205 X150 Z80
-M206 A1             ; Enable adaptive jerk
+M206 S1             ; Enable adaptive jerk
 
 G1 F2000 X10 Y10
 
@@ -31,7 +31,7 @@ G1 X10 Y90
 G1 X90 Y90          ; 90-degree corner
 
 ; Test without adaptive
-M206 A0
+M206 S0
 G1 X50 Y10
 G1 X10 Y10          ; Same moves without adaptive
 G1 X10 Y50

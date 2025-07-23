@@ -11,7 +11,7 @@ G54 G90 G94         ; Work coordinate system, absolute positioning
 ; Servo-optimized S-curve settings (aggressive)
 M204 P15000 T8000   ; Very aggressive acceleration (servo advantage)
 M205 X700 Z350      ; High jerk values for servo responsiveness
-M206 M1.5 C0.8 A1   ; Take full advantage of servo precision
+M206 P1.5 Q0.8 S1   ; Take full advantage of servo precision
 M210 F1.5 J1.4 A80  ; Aggressive junction optimization
 M211 S1 P0.01 R3.0 V100 F0.8 L16  ; Advanced path blending
 M212 V70.0 Q3.5 D2.0 ; Aggressive final positioning

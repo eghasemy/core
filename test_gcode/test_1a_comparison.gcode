@@ -9,7 +9,7 @@ G90 G94             ; Absolute, feed rate mode
 
 ; Test 1: Minimal S-curve (approximates linear acceleration)
 M205 X50 Z25        ; Very low jerk settings
-M206 M0.8 C1.0      ; Minimal S-curve effect
+M206 P0.8 Q1.0      ; Minimal S-curve effect
 G1 F1000 X150 Y150  ; Move to start position (center area)
 G4 P2               ; Pause for observation
 
@@ -25,7 +25,7 @@ G4 P2
 
 ; Test 2: Proper S-curve settings for CNC
 M205 X400 Z200      ; NEMA23/24 capable jerk values
-M206 M1.2 C0.7      ; Full S-curve features enabled
+M206 P1.2 Q0.7      ; Full S-curve features enabled
 G4 P2               ; Pause for comparison
 
 ; Execute same pattern with full S-curve
@@ -40,7 +40,7 @@ G4 P2
 
 ; Test 3: Aggressive servo-capable settings (if applicable)
 M205 X600 Z300      ; Servo motor capable values
-M206 M1.4 C0.8      ; Aggressive S-curve optimization
+M206 P1.4 Q0.8      ; Aggressive S-curve optimization
 G4 P2
 
 ; Execute pattern with servo-optimized S-curve

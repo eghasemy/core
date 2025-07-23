@@ -76,7 +76,7 @@ G4 P2
 
 ; Test 2: Proper S-curve settings
 M205 X300 Z150      ; Proper S-curve jerk values
-M206 M1.2 C0.7      ; Enable full S-curve features
+M206 P1.2 Q0.7      ; Enable full S-curve features
 G4 P2               ; Pause for comparison
 
 ; Execute same pattern with full S-curve
@@ -139,11 +139,11 @@ G1 X{x_start:.0f}             ; Return move
 
 ; Test 4: Multiplier effect
 M205 X300 Z150      ; Reset to medium
-M206 M0.5           ; Low multiplier
+M206 P0.5           ; Low multiplier
 G1 Y{y_end:.0f}
 G4 P1
 G1 Y{y_start:.0f}
-M206 M2.0           ; High multiplier  
+M206 P2.0           ; High multiplier  
 G1 X{x_end:.0f}
 G4 P1
 G1 X{x_start:.0f}
@@ -270,7 +270,7 @@ M208                ; Reset to defaults
 
 ; Test 1: Conservative settings for long moves
 M205 X350 Z175      ; Moderate jerk
-M206 M1.0 C0.7 A1   ; Conservative S-curve
+M206 P1.0 Q0.7 S1   ; Conservative S-curve
 M210 F1.1 J1.0 A120 ; Gentle junction handling
 M207
 
@@ -289,7 +289,7 @@ G4 P2
 
 ; Test 2: Aggressive settings for maximum speed
 M205 X600 Z300      ; High jerk for speed
-M206 M1.4 C0.8 A1   ; Aggressive S-curve
+M206 P1.4 Q0.8 S1   ; Aggressive S-curve
 M210 F1.4 J1.2 A90  ; Fast cornering
 M207
 
@@ -353,7 +353,7 @@ G28 G54 G90 G94
 
 ; Test 1: Aggressive aluminum settings
 M205 X500 Z250      ; High jerk for aluminum
-M206 M1.4 C0.8 A1   ; Aggressive motion
+M206 P1.4 Q0.8 S1   ; Aggressive motion
 M210 F1.5 J1.3 A90  ; Fast cornering
 M211 S1 P0.02 R3.0 V75 F0.8 L10  ; Optimized blending
 M212 V60.0 Q3.0 D2.0 ; Quick positioning

@@ -537,7 +537,7 @@ $786=1.6             ; Stop threshold distance
 1. Tighten path blending tolerance: `M211 P0.005`
 2. Reduce corner factor: `M206 C0.5`
 3. Lower junction velocity factor: `M210 F1.0`
-4. Enable adaptive jerk for automatic corner detection: `M206 A1`
+4. Enable adaptive jerk for automatic corner detection: `M206 S1`
 5. Increase final deceleration precision: `M212 V20.0 Q1.8`
 
 ### Issue: Jog Motions "Crawl" to Stop
@@ -568,7 +568,7 @@ $786=1.6             ; Stop threshold distance
 **Root Causes:** Single setting set not optimal for all applications
 **Solutions:**
 1. Create material-specific parameter sets
-2. Use adaptive jerk: `M206 A1` (automatically adjusts)
+2. Use adaptive jerk: `M206 S1` (automatically adjusts)
 3. Develop macros for quick material changes:
    ```gcode
    ; Aluminum macro
