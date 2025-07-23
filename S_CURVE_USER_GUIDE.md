@@ -91,9 +91,9 @@ M205 J0.01           ; J=Junction deviation (affects cornering precision)
 
 #### M206 - Advanced S-Curve Parameters
 ```gcode
-M206 M1.3            ; M=Global jerk multiplier (0.5-2.0, higher for servos)
-M206 C0.7            ; C=Corner jerk factor (0.1-1.0, lower = smoother corners)
-M206 A1              ; A=Enable adaptive jerk (0=off, 1=on)
+M206 P1.3            ; P=Global jerk multiplier (0.5-2.0, higher for servos)
+M206 Q0.7            ; Q=Corner jerk factor (0.1-1.0, lower = smoother corners)
+M206 S1              ; S=Enable adaptive jerk (0=off, 1=on)
 ```
 
 #### M207 - Report Current Settings
@@ -138,7 +138,7 @@ M212 V40.0 Q2.5 D1.5 ; V=min stop velocity, Q=jerk multiplier, D=threshold dista
 ; High-speed aluminum roughing
 M204 P10000 T5000    ; Aggressive acceleration for rapid positioning
 M205 X500 Z250       ; High jerk for responsive motion
-M206 M1.4 C0.8 A1    ; Aggressive multiplier with adaptive jerk
+M206 P1.4 Q0.8 S1    ; Aggressive multiplier with adaptive jerk
 
 ; Junction optimization for aluminum
 M210 F1.5 J1.3 A90   ; Optimized for sharp corners in aluminum
@@ -150,7 +150,7 @@ M211 S1 P0.01 R2.5   ; Tight path blending for precision
 ; Steel precision machining
 M204 P6000 T3000     ; Moderate acceleration to reduce tool chatter
 M205 X300 Z150       ; Conservative jerk for tool life
-M206 M1.1 C0.6 A1    ; Smooth motion with corner care
+M206 P1.1 Q0.6 S1    ; Smooth motion with corner care
 
 ; Junction optimization for steel
 M210 F1.2 J1.0 A120  ; Gentle corners to prevent tool breakage
@@ -162,7 +162,7 @@ M211 S1 P0.015 R2.0  ; Moderate blending for surface finish
 ; Cast iron machining settings
 M204 P4000 T2000     ; Lower acceleration for chatter control
 M205 X200 Z100       ; Very conservative jerk
-M206 M0.9 C0.5 A1    ; Smooth motion priority
+M206 P0.9 Q0.5 S1    ; Smooth motion priority
 
 ; Optimized for cast iron characteristics
 M210 F1.0 J0.8 A150  ; Very gentle junction handling
@@ -174,7 +174,7 @@ M211 S1 P0.02 R1.5   ; Conservative blending for consistency
 ; Composite/plastic machining
 M204 P8000 T4000     ; Higher speeds possible with these materials
 M205 X400 Z200       ; Moderate jerk to prevent delamination
-M206 M1.2 C0.7 A1    ; Balanced approach
+M206 P1.2 Q0.7 S1    ; Balanced approach
 
 ; Optimized for fiber composites
 M210 F1.3 J1.1 A100  ; Smooth direction changes
@@ -187,7 +187,7 @@ M211 S1 P0.01 R3.0   ; Larger blend radius for fiber orientation
 ```gcode
 ; Standard end mill settings
 M205 X350 Z180       ; Balanced for cutting forces
-M206 M1.2 C0.7       ; Good balance of speed and finish
+M206 P1.2 Q0.7       ; Good balance of speed and finish
 M212 V45.0 Q2.3 D1.2 ; Smooth final approach for surface finish
 ```
 
@@ -195,7 +195,7 @@ M212 V45.0 Q2.3 D1.2 ; Smooth final approach for surface finish
 ```gcode
 ; Drilling cycle optimization
 M205 X250 Z400       ; Lower XY jerk, higher Z for pecking
-M206 M1.0 C0.8       ; Conservative for hole accuracy
+M206 P1.0 Q0.8       ; Conservative for hole accuracy
 M212 V20.0 Q3.0 D0.5 ; Aggressive final approach for drilling
 ```
 
@@ -203,7 +203,7 @@ M212 V20.0 Q3.0 D0.5 ; Aggressive final approach for drilling
 ```gcode
 ; Fly cutter settings (large interrupted cuts)
 M205 X150 Z80        ; Very conservative for large cutter stability
-M206 M0.8 C0.4       ; Smooth motion critical for surface finish
+M206 P0.8 Q0.4       ; Smooth motion critical for surface finish
 M212 V30.0 Q1.8 D2.0 ; Gentle final approach
 ```
 
@@ -211,7 +211,7 @@ M212 V30.0 Q1.8 D2.0 ; Gentle final approach
 ```gcode
 ; High-speed finishing passes
 M205 X600 Z300       ; Aggressive for rapid traversals
-M206 M1.5 C0.9       ; Maximum responsiveness
+M206 P1.5 Q0.9       ; Maximum responsiveness
 M212 V60.0 Q2.8 D1.0 ; Quick final positioning
 ```
 
@@ -249,7 +249,7 @@ M212 V60.0 Q2.8 D1.0 ; Quick final positioning
 **Recommended Settings:**
 ```gcode
 M205 X400 Z200       ; Base jerk values
-M206 M1.2            ; 20% increase over NEMA17 settings
+M206 P1.2            ; 20% increase over NEMA17 settings
 M210 F1.3 J1.2       ; Moderate junction optimization
 ```
 
@@ -263,7 +263,7 @@ M210 F1.3 J1.2       ; Moderate junction optimization
 **Servo-Optimized Settings:**
 ```gcode
 M205 X600 Z350       ; Aggressive jerk values possible
-M206 M1.5 C0.8 A1    ; Take advantage of servo precision
+M206 P1.5 Q0.8 S1    ; Take advantage of servo precision
 M210 F1.5 J1.4 A90   ; Aggressive junction optimization
 M211 S1 P0.01 R3.0 L12  ; Advanced path blending
 ```
@@ -387,7 +387,7 @@ M205 X200 Z100       ; Conservative starting jerk
 ```gcode
 M208                 ; Reset to defaults
 M205 X350 Z180       ; Moderate jerk for NEMA23/24
-M206 M1.2 C0.7 A1    ; Enable adaptive with moderate settings
+M206 P1.2 Q0.7 S1    ; Enable adaptive with moderate settings
 M210 F1.3 J1.1 A120  ; Basic junction optimization
 M211 S1 P0.02 R2.5 V50 F0.7 L8  ; Enable path blending
 M212 V40.0 Q2.5 D1.5 ; Final deceleration optimization
@@ -397,7 +397,7 @@ M212 V40.0 Q2.5 D1.5 ; Final deceleration optimization
 ```gcode
 M208                 ; Reset to defaults  
 M205 X500 Z250       ; Aggressive jerk for servos
-M206 M1.4 C0.8 A1    ; Take advantage of servo precision
+M206 P1.4 Q0.8 S1    ; Take advantage of servo precision
 M210 F1.4 J1.3 A100  ; Aggressive junction optimization
 M211 S1 P0.015 R3.0 V75 F0.8 L10  ; Advanced path blending
 M212 V50.0 Q3.0 D1.8 ; Aggressive final deceleration
@@ -431,7 +431,7 @@ M205 X546 Z281       ; 50% increase from baseline
 ```gcode
 ; High-speed aluminum test
 M205 X500 Z250       ; Aggressive settings
-M206 M1.4 C0.8       ; Fast cornering
+M206 P1.4 Q0.8       ; Fast cornering
 ; Run complex geometry at high feed rates
 ; Check surface finish and dimensional accuracy
 ```
@@ -440,7 +440,7 @@ M206 M1.4 C0.8       ; Fast cornering
 ```gcode
 ; Steel precision test  
 M205 X300 Z150       ; Conservative settings
-M206 M1.1 C0.6       ; Careful cornering
+M206 P1.1 Q0.6       ; Careful cornering
 ; Run same geometry, check for chatter
 ; Validate tool life and surface finish
 ```
@@ -502,8 +502,8 @@ $786=1.6             ; Stop threshold distance
 **Root Causes:** Jerk too high, inadequate corner handling, tool chatter
 **Solutions:**
 1. Reduce jerk values by 20-30%: `M205 X280 Z140`
-2. Increase corner care: `M206 C0.5`
-3. Enable adaptive jerk if not already: `M206 A1`
+2. Increase corner care: `M206 Q0.5`
+3. Enable adaptive jerk if not already: `M206 S1`
 4. Reduce junction aggressiveness: `M210 F1.0 J0.9`
 5. Check mechanical issues (spindle runout, tool condition)
 
@@ -513,10 +513,10 @@ $786=1.6             ; Stop threshold distance
 **Root Causes:** Jerk values too low, path blending disabled, conservative settings
 **Solutions:**
 1. Increase jerk incrementally: `M205 X400 Z200`
-2. Increase global multiplier: `M206 M1.3`
+2. Increase global multiplier: `M206 P1.3`
 3. Enable path blending: `M211 S1 P0.02 R3.0`
 4. Optimize junctions: `M210 F1.4 J1.2 A100`
-5. For servo systems, be more aggressive: `M206 M1.5`
+5. For servo systems, be more aggressive: `M206 P1.5`
 
 ### Issue: Tool Chatter or Vibration
 
@@ -557,7 +557,7 @@ $786=1.6             ; Stop threshold distance
 **Root Causes:** Conservative settings designed for open-loop steppers
 **Solutions:**
 1. Increase base jerk values by 50-80%: `M205 X600 Z350`
-2. Aggressive multiplier: `M206 M1.5`
+2. Aggressive multiplier: `M206 P1.5`
 3. Advanced junction optimization: `M210 F1.5 J1.4 A80`
 4. Maximum lookahead: `M211 L16`
 5. Aggressive final deceleration: `M212 Q3.5 V75.0`
@@ -573,12 +573,12 @@ $786=1.6             ; Stop threshold distance
    ```gcode
    ; Aluminum macro
    M205 X500 Z250
-   M206 M1.4 C0.8
+   M206 P1.4 Q0.8
    M210 F1.5 J1.3
    
    ; Steel macro  
    M205 X300 Z150
-   M206 M1.1 C0.6
+   M206 P1.1 Q0.6
    M210 F1.2 J1.0
    ```
 

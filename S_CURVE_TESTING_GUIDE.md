@@ -103,7 +103,7 @@ $$                  ; Display all settings for documentation
 ; Conservative baseline for testing
 M204 P6000 T3000    ; Moderate acceleration for testing
 M205 X250 Z125      ; Conservative jerk starting point
-M206 M1.0 C0.7 A1   ; Standard settings with adaptive enabled
+M206 P1.0 Q0.7 S1   ; Standard settings with adaptive enabled
 M210 F1.2 J1.0 A120 ; Moderate junction optimization
 M211 S0             ; Disable path blending initially
 M212 V30.0 Q2.0 D1.0 ; Standard final deceleration
@@ -144,7 +144,7 @@ G4 P2
 
 ; Test 2: Proper S-curve settings
 M205 X300 Z150      ; Proper S-curve jerk values
-M206 M1.2 C0.7      ; Enable full S-curve features
+M206 P1.2 Q0.7      ; Enable full S-curve features
 G4 P2               ; Pause for comparison
 
 ; Execute same pattern with full S-curve
@@ -323,7 +323,7 @@ G28 G90 G94
 M205 X350 Z175      ; Set moderate base jerk for testing
 
 ; Test 1: Jerk Multiplier Effects ($772)
-M206 M0.7 C0.7 A0   ; Conservative multiplier, adaptive off
+M206 P0.7 Q0.7 S0   ; Conservative multiplier, adaptive off
 M207
 G1 F2500 X25 Y25
 ; Test pattern with sharp corners
@@ -333,7 +333,7 @@ G1 X25 Y75
 G1 X25 Y25
 G4 P2
 
-M206 M1.0 C0.7 A0   ; Standard multiplier
+M206 P1.0 Q0.7 S0   ; Standard multiplier
 M207
 G1 X75 Y25
 G1 X75 Y75
@@ -341,7 +341,7 @@ G1 X25 Y75
 G1 X25 Y25
 G4 P2
 
-M206 M1.4 C0.7 A0   ; Aggressive multiplier
+M206 P1.4 Q0.7 S0   ; Aggressive multiplier
 M207
 G1 X75 Y25
 G1 X75 Y75
@@ -350,7 +350,7 @@ G1 X25 Y25
 G4 P2
 
 ; Test 2: Corner Factor Effects ($773)
-M206 M1.2 C0.3 A0   ; Aggressive corner reduction
+M206 P1.2 Q0.3 S0   ; Aggressive corner reduction
 M207
 G1 X75 Y25
 G1 X75 Y75
@@ -358,7 +358,7 @@ G1 X25 Y75
 G1 X25 Y25
 G4 P2
 
-M206 M1.2 C0.7 A0   ; Moderate corner reduction
+M206 P1.2 Q0.7 S0   ; Moderate corner reduction
 M207
 G1 X75 Y25
 G1 X75 Y75
@@ -366,7 +366,7 @@ G1 X25 Y75
 G1 X25 Y25
 G4 P2
 
-M206 M1.2 C1.0 A0   ; No corner reduction
+M206 P1.2 Q1.0 S0   ; No corner reduction
 M207
 G1 X75 Y25
 G1 X75 Y75
@@ -375,7 +375,7 @@ G1 X25 Y25
 G4 P2
 
 ; Test 3: Adaptive Jerk Comparison ($774)
-M206 M1.2 C0.7 A0   ; Adaptive off
+M206 P1.2 Q0.7 S0   ; Adaptive off
 M207
 ; Mixed move lengths to test adaptive response
 G1 F3000 X100 Y25   ; Long move (75mm)
@@ -386,7 +386,7 @@ G1 X25 Y75          ; Long move (77mm)
 G1 X25 Y25          ; Medium move (50mm)
 G4 P2
 
-M206 M1.2 C0.7 A1   ; Adaptive on
+M206 P1.2 Q0.7 S1   ; Adaptive on
 M207
 ; Same pattern - should auto-adjust jerk
 G1 F3000 X100 Y25
@@ -415,7 +415,7 @@ Save as `test_2c_junction_optimization.gcode`:
 
 G28 G90 G94
 M205 X400 Z200      ; Set aggressive base jerk for junction testing
-M206 M1.2 C0.7 A1   ; Standard settings
+M206 P1.2 Q0.7 S1   ; Standard settings
 
 ; Test 1: Junction Velocity Factor ($775)
 M210 F0.8 J1.0 A120 ; Conservative junction velocity
@@ -527,7 +527,7 @@ Save as `test_2d_path_blending.gcode`:
 
 G28 G90 G94
 M205 X400 Z200      ; Set good base jerk for blending tests
-M206 M1.2 C0.7 A1   ; Standard S-curve settings
+M206 P1.2 Q0.7 S1   ; Standard S-curve settings
 
 ; Test 1: Path Blending Enable/Disable ($778)
 M211 S0             ; Disable path blending
@@ -812,7 +812,7 @@ G1 Z-0.5 F200       ; Light cut depth
 
 ; Test Surface 1: Conservative S-curve settings
 M205 X200 Z100      ; Conservative jerk for smoothness
-M206 M0.9 C0.5 A1   ; Smooth motion priority
+M206 P0.9 Q0.5 S1   ; Smooth motion priority
 M207                ; Report settings
 
 ; Create 30x20mm test surface
@@ -827,7 +827,7 @@ G1 Z2               ; Retract
 
 ; Test Surface 2: Moderate S-curve settings  
 M205 X350 Z175      ; Moderate jerk
-M206 M1.2 C0.7 A1   ; Balanced settings
+M206 P1.2 Q0.7 S1   ; Balanced settings
 M207
 
 ; Move to next area
@@ -845,7 +845,7 @@ G1 Z2
 
 ; Test Surface 3: Aggressive S-curve settings
 M205 X500 Z250      ; Aggressive jerk for speed
-M206 M1.4 C0.8 A1   ; Speed priority
+M206 P1.4 Q0.8 S1   ; Speed priority
 M207
 
 ; Move to next area
@@ -898,7 +898,7 @@ G1 Z-0.2 F200       ; Very light cut for accuracy test
 
 ; Test 1: Conservative settings for maximum accuracy
 M205 X250 Z125      ; Conservative jerk
-M206 M1.0 C0.5 A1   ; Prioritize accuracy
+M206 P1.0 Q0.5 S1   ; Prioritize accuracy
 M210 F1.0 J0.9 A150 ; Gentle junction handling
 M211 S1 P0.005 R1.0 ; Tight blending tolerance
 M207                ; Report settings
@@ -914,7 +914,7 @@ G1 Z2               ; Retract
 
 ; Test 2: Aggressive settings for speed comparison
 M205 X500 Z250      ; Aggressive jerk
-M206 M1.4 C0.8 A1   ; Prioritize speed
+M206 P1.4 Q0.8 S1   ; Prioritize speed
 M210 F1.5 J1.3 A90  ; Aggressive junctions
 M211 S1 P0.02 R3.0  ; Loose blending
 M207
@@ -964,7 +964,7 @@ G0 Z2
 
 ; Conservative S-curve for tool life
 M205 X200 Z100      ; Smooth motion for tool longevity
-M206 M0.9 C0.6      ; Gentle on tool
+M206 P0.9 Q0.6      ; Gentle on tool
 M212 V30.0 Q2.0     ; Smooth final approach
 
 ; Extended cutting pattern (slotting operation)
@@ -1014,7 +1014,7 @@ M208                ; Reset to defaults
 
 ; Test 1: Baseline stepper performance
 M205 X300 Z150      ; Good starting point for NEMA23
-M206 M1.1 C0.7 A1   ; Moderate settings
+M206 P1.1 Q0.7 S1   ; Moderate settings
 M207
 
 ; Stepper torque curve test (varying speeds)
@@ -1078,7 +1078,7 @@ M208
 
 ; Test 1: Aggressive settings possible with servos
 M205 X600 Z300      ; Start with higher values than steppers
-M206 M1.4 C0.8 A1   ; Aggressive settings
+M206 P1.4 Q0.8 S1   ; Aggressive settings
 M207
 
 ; Servo precision test
@@ -1099,7 +1099,7 @@ G4 P1
 
 ; Test 3: Complex path with servo advantages
 M205 X700 Z350      ; Optimized for servos
-M206 M1.5 C0.8 A1   ; Take full advantage
+M206 P1.5 Q0.8 S1   ; Take full advantage
 M210 F1.5 J1.4 A80  ; Aggressive junction optimization
 M211 S1 P0.01 R3.0 V100 F0.8 L16  ; Advanced path blending
 
@@ -1149,7 +1149,7 @@ G28 G54 G90 G94
 
 ; Test 1: Aggressive aluminum settings
 M205 X500 Z250      ; High jerk for aluminum
-M206 M1.4 C0.8 A1   ; Aggressive motion
+M206 P1.4 Q0.8 S1   ; Aggressive motion
 M210 F1.5 J1.3 A90  ; Fast cornering
 M211 S1 P0.02 R3.0 V75 F0.8 L10  ; Optimized blending
 M212 V60.0 Q3.0 D2.0 ; Quick positioning
@@ -1204,7 +1204,7 @@ G28 G54 G90 G94
 
 ; Test 1: Conservative steel settings
 M205 X300 Z150      ; Moderate jerk to prevent chatter
-M206 M1.1 C0.6 A1   ; Smooth motion priority
+M206 P1.1 Q0.6 S1   ; Smooth motion priority
 M210 F1.2 J1.0 A120 ; Gentle cornering
 M211 S1 P0.015 R2.0 V40 F0.6 L8  ; Careful blending
 M212 V35.0 Q2.2 D1.2 ; Controlled positioning
@@ -1257,7 +1257,7 @@ G28
 
 ; Setting 1: Conservative (baseline)
 M205 X250 Z125
-M206 M1.0 C0.6 A1
+M206 P1.0 Q0.6 S1
 M210 F1.1 J1.0 A130
 M211 S1 P0.02 R2.0 V40 F0.6 L6
 ; Run production part and record:

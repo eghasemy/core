@@ -63,13 +63,13 @@ Example: `M205 X20 Z10 E15` - Set XY jerk to 20, Z to 10, E to 15
 
 #### M206 - Advanced S-Curve Parameters
 ```gcode
-M206 M<multiplier> C<corner_factor> A<adaptive_enable>
+M206 P<multiplier> Q<corner_factor> S<adaptive_enable>
 ```
 - `M`: Global jerk multiplier (0.1 - 5.0)
 - `C`: Corner jerk reduction factor (0.1 - 1.0)
 - `A`: Enable/disable adaptive jerk (0/1)
 
-Example: `M206 M1.2 C0.8 A1` - 20% more aggressive, less corner reduction, adaptive ON
+Example: `M206 P1.2 Q0.8 S1` - 20% more aggressive, less corner reduction, adaptive ON
 
 #### M207 - Report S-Curve Parameters
 ```gcode
@@ -162,21 +162,21 @@ $802=80.0     ; Z-axis jerk (mm/sec³)
 ```gcode
 M204 P5000 T2500    ; Aggressive acceleration
 M205 X30 Z15        ; High jerk for speed
-M206 M1.3 C0.9 A1   ; Aggressive profile with adaptive
+M206 P1.3 Q0.9 S1   ; Aggressive profile with adaptive
 ```
 
 ### Precision Machining Setup  
 ```gcode
 M204 P1500 T800     ; Conservative acceleration
 M205 X8 Z4          ; Low jerk for smoothness
-M206 M0.8 C0.6 A1   ; Smooth profile with corner care
+M206 P0.8 Q0.6 S1   ; Smooth profile with corner care
 ```
 
 ### 3D Printing Setup
 ```gcode
 M204 P3000 R2000    ; Print and retract acceleration
 M205 X20 Z8 E25     ; Balanced jerk values
-M206 M1.0 C0.7 A1   ; Standard profile with adaptive
+M206 P1.0 Q0.7 S1   ; Standard profile with adaptive
 ```
 
 ## Machine-Specific Tuning
@@ -208,17 +208,17 @@ M206 M1.0 C0.7 A1   ; Standard profile with adaptive
 
 1. **Motion too slow**
    - Increase jerk: `M205 X25 Z12`
-   - Increase multiplier: `M206 M1.3`
+   - Increase multiplier: `M206 P1.3`
    - Check acceleration: `M204 P4000`
 
 2. **Poor surface finish**  
    - Decrease jerk: `M205 X10 Z5`
-   - Increase corner care: `M206 C0.5`
-   - Enable adaptive: `M206 A1`
+   - Increase corner care: `M206 Q0.5`
+   - Enable adaptive: `M206 S1`
 
 3. **Machine vibration**
    - Reduce jerk values by 30%
-   - Lower corner factor: `M206 C0.4`
+   - Lower corner factor: `M206 Q0.4`
    - Check mechanical issues
 
 ### Debugging Commands
@@ -226,7 +226,7 @@ M206 M1.0 C0.7 A1   ; Standard profile with adaptive
 ```gcode
 M207              ; Report current settings
 M209 S1 V1        ; Enable adaptive mode
-M206 M0.8 C0.6    ; Conservative settings
+M206 P0.8 Q0.6    ; Conservative settings
 M208              ; Reset to defaults if needed
 ```
 

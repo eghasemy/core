@@ -122,27 +122,14 @@ static status_code_t s_curve_mcode_validate(parser_block_t *gc_block)
             break;
             
         case MCode_SCurveAdvanced:
-            // M206: M<multiplier> C<corner_factor> A<adaptive_enable>
-            if (isnan(gc_block->values.m) && isnan(gc_block->values.c) && 
-#ifndef A_AXIS  
-                isnan(gc_block->values.a)) {
-#else
-                gc_block->values.xyz[A_AXIS] == 0.0f) {
-#endif
+            // M206: P<multiplier> Q<corner_factor> S<adaptive_enable>
+            if (isnan(gc_block->values.p) && isnan(gc_block->values.q) && isnan(gc_block->values.s)) {
                 state = Status_GcodeValueWordMissing;
             } else {
                 // Mark parameters as consumed during validation
-                if (!isnan(gc_block->values.m)) gc_block->words.m = Off;
-#ifndef C_AXIS
-                if (!isnan(gc_block->values.c)) gc_block->words.c = Off;
-#else
-                if (!isnan(gc_block->values.xyz[C_AXIS])) gc_block->words.c = Off;
-#endif
-#ifndef A_AXIS
-                if (!isnan(gc_block->values.a)) gc_block->words.a = Off;
-#else
-                if (gc_block->values.xyz[A_AXIS] != 0.0f) gc_block->words.a = Off;
-#endif
+                if (!isnan(gc_block->values.p)) gc_block->words.p = Off;
+                if (!isnan(gc_block->values.q)) gc_block->words.q = Off;
+                if (!isnan(gc_block->values.s)) gc_block->words.s = Off;
             }
             break;
             
@@ -285,28 +272,16 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
             break;
             
         case MCode_SCurveAdvanced:
-            // M206: Advanced S-curve parameters
-            if (!isnan(gc_block->values.m)) {
-                ok &= s_curve_set_parameter_realtime(SCurveParam_JerkMultiplier, gc_block->values.m);
+            // M206: Advanced S-curve parameters P<multiplier> Q<corner_factor> S<adaptive_enable>
+            if (!isnan(gc_block->values.p)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_JerkMultiplier, gc_block->values.p);
             }
-#ifndef C_AXIS
-            if (!isnan(gc_block->values.c)) {
-                ok &= s_curve_set_parameter_realtime(SCurveParam_CornerFactor, gc_block->values.c);
+            if (!isnan(gc_block->values.q)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_CornerFactor, gc_block->values.q);
             }
-#else
-            if (!isnan(gc_block->values.xyz[C_AXIS])) {
-                ok &= s_curve_set_parameter_realtime(SCurveParam_CornerFactor, gc_block->values.xyz[C_AXIS]);
+            if (!isnan(gc_block->values.s)) {
+                ok &= s_curve_set_parameter_realtime(SCurveParam_AdaptiveEnable, gc_block->values.s);
             }
-#endif
-#ifndef A_AXIS
-            if (!isnan(gc_block->values.a)) {
-                ok &= s_curve_set_parameter_realtime(SCurveParam_AdaptiveEnable, gc_block->values.a);
-            }
-#else
-            if (gc_block->values.xyz[A_AXIS] != 0.0f) {
-                ok &= s_curve_set_parameter_realtime(SCurveParam_AdaptiveEnable, gc_block->values.xyz[A_AXIS]);
-            }
-#endif
             if (ok) {
                 hal.stream.write("[MSG:S-curve advanced parameters updated]" ASCII_EOL);
             } else {
