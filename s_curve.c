@@ -467,7 +467,7 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
         case SCurveParam_JerkXY:
             // Note: Individual axis jerk is stored in settings.axis[].jerk
             // This is a compatibility function - jerk should be set per axis
-            if (value > 0.0f && value <= 1000.0f) {
+            if (value >= 0.0f && value <= 100000.0f) {
                 // Update X and Y axis jerk settings
                 settings.axis[X_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
                 settings.axis[Y_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
@@ -476,7 +476,7 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_JerkZ:
-            if (value > 0.0f && value <= 1000.0f) {
+            if (value >= 0.0f && value <= 100000.0f) {
                 settings.axis[Z_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
                 return true;
             }
@@ -484,7 +484,7 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             
         case SCurveParam_JerkE:
             // E axis handling for rotary/extruder
-            if (value > 0.0f && value <= 1000.0f) {
+            if (value >= 0.0f && value <= 100000.0f) {
 #ifdef A_AXIS
                 settings.axis[A_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
 #endif
