@@ -473,14 +473,14 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
                 settings.axis[Y_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_JerkZ:
             if (value > 0.0f && value <= 1000.0f) {
                 settings.axis[Z_AXIS].jerk = value * 60.0f * 60.0f * 60.0f; // Convert to mm/min³
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_JerkE:
             // E axis handling for rotary/extruder
@@ -490,21 +490,21 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
 #endif
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_JerkMultiplier:
             if (value >= 0.1f && value <= 5.0f) {
                 settings.s_curve.multiplier = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_CornerFactor:
             if (value >= 0.1f && value <= 1.0f) {
                 settings.s_curve.corner_factor = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_AdaptiveEnable:
             settings.s_curve.adaptive_enable = (value > 0.0f);
@@ -515,21 +515,21 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
                 settings.s_curve.junction_velocity_factor = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_JunctionJerkMultiplier:
             if (value >= 0.1f && value <= 2.0f) {
                 settings.s_curve.junction_jerk_multiplier = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_SmoothJunctionAngle:
             if (value >= 0.0f && value <= M_PI) {
                 settings.s_curve.junction_angle_threshold = value * (180.0f / M_PI); // Convert radians to degrees
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_EnablePathBlending:
             settings.s_curve.path_blending_enable = (value > 0.0f);
@@ -540,56 +540,56 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
                 settings.s_curve.path_blending_tolerance = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_MaxBlendRadius:
             if (value >= 0.1f && value <= 10.0f) {
                 settings.s_curve.path_blending_radius = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_MinBlendVelocity:
             if (value >= 1.0f && value <= 100.0f) {
                 settings.s_curve.path_blending_min_velocity = value * 60.0f; // Convert mm/sec to mm/min
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_BlendJerkFactor:
             if (value >= 0.1f && value <= 1.0f) {
                 settings.s_curve.path_blending_jerk_factor = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_LookaheadBlocks:
             if (value >= 3 && value <= 16) {
                 settings.s_curve.path_blending_lookahead = (uint8_t)value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_MinStopVelocity:
             if (value >= 0.1f && value <= 1000.0f) {
                 settings.s_curve.min_stop_velocity = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_FinalDecelJerkMultiplier:
             if (value >= 0.1f && value <= 5.0f) {
                 settings.s_curve.final_decel_jerk_multiplier = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
             
         case SCurveParam_StopThresholdDistance:
             if (value >= 0.0f && value <= 50.0f) {
                 settings.s_curve.stop_threshold_distance = value;
                 return true;
             }
-            break;
+            return false; // Explicitly return false if validation fails
     }
     
     return false;
