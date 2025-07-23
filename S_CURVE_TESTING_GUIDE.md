@@ -27,11 +27,12 @@ The testing process follows a systematic approach:
 
 ### Machine Requirements
 - [ ] CNC machine with NEMA23/24 steppers OR servo motors
+- [ ] **Travel limits: 500x500x200mm minimum** (X/Y/Z axes)
 - [ ] grblHAL controller with S-curve acceleration enabled
 - [ ] Proper machine calibration ($100-$102 steps/mm accurate)
 - [ ] Mechanical condition verified (no binding, proper lubrication)
 - [ ] Tool holding system properly calibrated
-- [ ] Work coordinate system established
+- [ ] Work coordinate system established with sufficient clearance (25mm margins)
 
 ### Measurement Tools
 - Digital calipers (0.02mm resolution minimum)
@@ -48,11 +49,41 @@ The testing process follows a systematic approach:
 - First aid kit available
 
 ### Test Materials
-- Aluminum 6061 blocks (50x50x20mm minimum)
-- Steel blocks (optional for advanced testing)
+- Aluminum 6061 blocks (100x100x25mm minimum) 
+- Steel blocks (75x75x20mm for advanced testing)
 - Test cutting tools (verified condition and runout)
+- **Note:** Test coordinates assume 500x500x200mm travel envelope with 25mm safety margins
 
 ## Test Setup and Initialization
+
+### Travel Envelope Configuration
+
+**Default Configuration: 500x500x200mm**
+- All test files are designed for CNC machines with **500x500x200mm travel limits**
+- **Safety margins**: 25mm from each limit for safe operation
+- **Usable range**: X25-475mm, Y25-475mm, Z5-195mm
+- **Center point**: X250, Y250 for workpiece positioning
+
+### Custom Travel Limits
+
+If your machine has different travel limits, use the provided G-code generator:
+
+```bash
+# Generate test files for your specific machine
+python generate_test_gcode.py [x_max] [y_max] [z_max]
+
+# Examples:
+python generate_test_gcode.py 300 300 150    # Smaller machine
+python generate_test_gcode.py 800 400 200    # Larger machine
+python generate_test_gcode.py 1000 1000 300  # Large format machine
+```
+
+**Generator Features:**
+- Automatically scales coordinates to your travel limits
+- Maintains safety margins and proportional test patterns
+- Generates optimized test files for your specific envelope
+- Creates configuration documentation
+- Preserves test methodology while adapting to machine size
 
 ### Initial Machine State Verification
 ```gcode
@@ -90,6 +121,7 @@ Save as `test_1a_scurve_verification.gcode`:
 ```gcode
 ; Test 1A: S-curve vs Linear Motion Comparison
 ; Verifies S-curve system is functioning correctly
+; Designed for 500x500x200mm travel envelope
 
 M208                ; Reset to defaults
 G28                 ; Home all axes
@@ -97,17 +129,17 @@ G90 G94             ; Absolute, feed rate mode
 
 ; Test 1: Very low jerk (approximates linear)
 M205 X25 Z15        ; Minimal jerk settings
-G1 F1000 X50 Y50    ; Move to start position
+G1 F1000 X150 Y150  ; Move to start position (uses central area)
 G4 P2               ; Pause for observation
 
-; Execute test pattern with minimal S-curve
-G1 F2500 X150 Y50   ; Fast move in X (80mm travel)
+; Execute test pattern with minimal S-curve - 300mm square
+G1 F2500 X450 Y150  ; Fast move in X (300mm travel)
 G4 P1
-G1 Y150             ; Fast move in Y (100mm travel)  
+G1 Y450             ; Fast move in Y (300mm travel)  
 G4 P1
-G1 X50              ; Return move (100mm travel)
+G1 X150             ; Return move (300mm travel)
 G4 P1
-G1 Y50              ; Complete square (100mm travel)
+G1 Y150             ; Complete square (300mm travel)
 G4 P2
 
 ; Test 2: Proper S-curve settings
@@ -116,13 +148,13 @@ M206 M1.2 C0.7      ; Enable full S-curve features
 G4 P2               ; Pause for comparison
 
 ; Execute same pattern with full S-curve
-G1 F2500 X150 Y50   ; Same moves with S-curve enabled
+G1 F2500 X450 Y150  ; Same moves with S-curve enabled
+G4 P1
+G1 Y450
+G4 P1  
+G1 X150
 G4 P1
 G1 Y150
-G4 P1  
-G1 X50
-G4 P1
-G1 Y50
 G4 P2
 
 ; Return to home
@@ -143,41 +175,42 @@ Save as `test_1b_parameter_response.gcode`:
 ```gcode
 ; Test 1B: Verify parameter changes take effect
 ; Tests immediate response to parameter modifications
+; Designed for 500x500x200mm travel envelope
 
 G28 G90 G94
-G1 F1000 X75 Y75    ; Move to center for testing
+G1 F1000 X250 Y250  ; Move to center for testing
 
 ; Test 1: Low jerk response
 M205 X50 Z25        ; Low jerk settings
 M207                ; Report settings
-G1 F2000 X125 Y75   ; 50mm move
+G1 F2000 X400 Y250  ; 150mm move
 G4 P2
-G1 X75              ; Return move
+G1 X250             ; Return move
 
 ; Test 2: Medium jerk response  
 M205 X200 Z100      ; Medium jerk settings
 M207                ; Report settings
-G1 Y125             ; 50mm move  
+G1 Y400             ; 150mm move  
 G4 P2
-G1 Y75              ; Return move
+G1 Y250             ; Return move
 
 ; Test 3: High jerk response
 M205 X500 Z250      ; High jerk settings
 M207                ; Report settings
-G1 X125             ; 50mm move
+G1 X400             ; 150mm move
 G4 P2
-G1 X75              ; Return move
+G1 X250             ; Return move
 
 ; Test 4: Multiplier effect
 M205 X300 Z150      ; Reset to medium
 M206 M0.5           ; Low multiplier
-G1 Y125
+G1 Y400
 G4 P1
-G1 Y75
+G1 Y250
 M206 M2.0           ; High multiplier  
-G1 X125
+G1 X400
 G4 P1
-G1 X75
+G1 X250
 
 ; Reset and return home
 M208
@@ -203,69 +236,70 @@ Save as `test_2a_jerk_optimization.gcode`:
 ```gcode
 ; Test 2A: Systematic Jerk Value Testing
 ; Tests jerk values from conservative to aggressive
+; Designed for 500x500x200mm travel envelope
 
 G28 G90 G94
 M208                ; Reset to defaults
 
 ; Define test pattern (complex geometry to stress jerk limits)
 ; Move to start position
-G1 F1000 X50 Y50
+G1 F1000 X100 Y100
 
 ; Test 1: Very Conservative Jerk (NEMA17 equivalent)
 M205 X150 Z80       ; Conservative baseline
 M207                ; Report settings
-; Complex test pattern
-G1 F3000 X100 Y50   ; Fast linear move
-G1 X100 Y100        ; 90-degree corner
-G1 X50 Y100         ; Another corner
-G1 X50 Y75          ; Shorter move
-G1 X75 Y75          ; Short move with direction change
-G1 X75 Y50          ; Return to start
+; Complex test pattern using larger coordinates
+G1 F3000 X250 Y100  ; Fast linear move (150mm)
+G1 X250 Y300        ; 90-degree corner (200mm)
+G1 X100 Y300        ; Another corner (150mm)
+G1 X100 Y200        ; Shorter move (100mm)
+G1 X175 Y200        ; Short move with direction change (75mm)
+G1 X175 Y100        ; Return to start (100mm)
 G4 P3               ; Pause for evaluation
 
 ; Test 2: NEMA23 Conservative
 M205 X250 Z125      ; Higher torque motor capability
 M207                ; Report settings
-; Same pattern
-G1 F3000 X100 Y50
-G1 X100 Y100
-G1 X50 Y100
-G1 X50 Y75
-G1 X75 Y75
-G1 X75 Y50
+; Same pattern scaled for larger machine
+G1 F3000 X250 Y100
+G1 X250 Y300
+G1 X100 Y300
+G1 X100 Y200
+G1 X175 Y200
+G1 X175 Y100
 G4 P3
 
 ; Test 3: NEMA23 Moderate
 M205 X350 Z175      ; Moderate settings
 M207
-G1 F3000 X100 Y50
-G1 X100 Y100
-G1 X50 Y100
-G1 X50 Y75
-G1 X75 Y75
-G1 X75 Y50
+G1 F3000 X250 Y100
+G1 X250 Y300
+G1 X100 Y300
+G1 X100 Y200
+G1 X175 Y200
+G1 X175 Y100
 G4 P3
 
 ; Test 4: NEMA23/24 Aggressive
 M205 X500 Z250      ; Aggressive for high-torque steppers
 M207
-G1 F3000 X100 Y50
-G1 X100 Y100
-G1 X50 Y100
-G1 X50 Y75
-G1 X75 Y75
-G1 X75 Y50
+G1 F3000 X250 Y100
+G1 X250 Y300
+G1 X100 Y300
+G1 X100 Y200
+G1 X175 Y200
+G1 X175 Y100
 G4 P3
 
 ; Test 5: Servo System Aggressive
 M205 X700 Z350      ; Servo motor capabilities
 M207
-G1 F3000 X100 Y50
-G1 X100 Y100
-G1 X50 Y100
-G1 X50 Y75
-G1 X75 Y75
-G1 X75 Y50
+G1 F3000 X250 Y100
+G1 X250 Y300
+G1 X100 Y300
+G1 X100 Y200
+G1 X175 Y200
+G1 X175 Y100
 G4 P3
 
 G28

@@ -1,6 +1,7 @@
 ; Test: CNC Aluminum Machining Optimization
-; Tests S-curve settings optimized for aluminum machining
+; Tests S-curve settings optimized for aluminum machining on 500x500x200mm envelope
 ; Requires: Aluminum test block, appropriate end mill, proper speeds/feeds
+; Workpiece area: 200x200 to 300x300 (100x100mm workpiece at machine center)
 
 ; SAFETY: User must configure spindle speeds and feeds for their setup
 ; This test pattern focuses on motion optimization, not cutting parameters
@@ -20,96 +21,101 @@ M207                ; Report current settings
 
 ; Test 1: High-speed roughing simulation
 ; Aluminum allows high feed rates and aggressive motion
-G1 F1000 X20 Y20    ; Position for test
-G1 F3000 X80 Y20    ; High-speed traverse
-G1 Y25 F600         ; Plunge rate
-G1 X20 F3000        ; High-speed return
-G1 Y30 F600         ; Next level
-G1 X80 F3000        ; Traverse
-G1 Y35 F600
-G1 X20 F3000
-G1 Y40 F600
-G1 X80 F3000
-G1 Y45 F600
-G1 X20 F3000
+G1 F1000 X200 Y200  ; Position for test (100x100mm workpiece area)
+G1 F3000 X300 Y200  ; High-speed traverse (100mm)
+G1 Y210 F600        ; Plunge rate (10mm stepover)
+G1 X200 F3000       ; High-speed return
+G1 Y220 F600        ; Next level
+G1 X300 F3000       ; Traverse
+G1 Y230 F600
+G1 X200 F3000
+G1 Y240 F600
+G1 X300 F3000
+G1 Y250 F600
+G1 X200 F3000
+G1 Y260 F600
+G1 X300 F3000
+G1 Y270 F600
+G1 X200 F3000
+G1 Y280 F600
+G1 X300 F3000
+G1 Y290 F600
+G1 X200 F3000
+G1 Y300 F600
 
 ; Test 2: Aluminum finishing characteristics
 ; Test surface finish with aggressive S-curve settings
-G1 F2000 X20 Y45    ; Position for finishing
-G1 X80 Y45          ; Finishing pass
-G1 Y20              ; Side pass
-G1 X20              ; Complete boundary
-G1 Y45              ; Return
+G1 F2000 X200 Y300  ; Position for finishing
+G1 X300 Y300        ; Finishing pass (100mm)
+G1 Y200             ; Side pass (100mm)
+G1 X200             ; Complete boundary (100mm)
+G1 Y300             ; Return (100mm)
 
 ; Test 3: Complex aluminum profiling
 ; Aluminum can handle complex geometry at high speeds
-G1 F2500 X30 Y25    ; Start complex profile
-G1 X35 Y35          ; Ramp up
-G1 X45 Y42          ; Curve
-G1 X55 Y45          ; Peak
-G1 X65 Y42          ; Curve down
-G1 X75 Y35          ; Ramp down
-G1 X80 Y25          ; End point
-G1 X75 Y15          ; Return curve
-G1 X65 Y8           ; Low point
-G1 X55 Y5           ; Minimum
-G1 X45 Y8           ; Return curve
-G1 X35 Y15          ; Ramp up
-G1 X30 Y25          ; Close profile
+G1 F2500 X220 Y220  ; Start complex profile
+G1 X230 Y240        ; Ramp up
+G1 X250 Y260        ; Curve
+G1 X270 Y270        ; Peak
+G1 X290 Y260        ; Curve down
+G1 X310 Y240        ; Ramp down (outside workpiece for testing)
+G1 X300 Y220        ; End point
+G1 X290 Y200        ; Return curve
+G1 X270 Y190        ; Low point
+G1 X250 Y185        ; Minimum
+G1 X230 Y190        ; Return curve
+G1 X220 Y200        ; Ramp up
+G1 X220 Y220        ; Close profile
 
 ; Test 4: Aluminum pocket clearing
 ; High-speed pocket clearing with rapid direction changes
-G1 F2500 X25 Y50    ; Position for pocket
+G1 F2500 X210 Y250  ; Position for pocket (within workpiece)
 ; Aggressive zigzag pattern possible with aluminum
-G1 X30 Y55
-G1 Y65
-G1 X35
-G1 Y55
-G1 X40
-G1 Y65
-G1 X45
-G1 Y55
-G1 X50
-G1 Y65
-G1 X55
-G1 Y55
-G1 X60
-G1 Y65
-G1 X65
-G1 Y55
-G1 X70
-G1 Y65
-G1 X75
-G1 Y55
+G1 X220 Y260
+G1 Y280
+G1 X230
+G1 Y260
+G1 X240
+G1 Y280
+G1 X250
+G1 Y260
+G1 X260
+G1 Y280
+G1 X270
+G1 Y260
+G1 X280
+G1 Y280
+G1 X290
+G1 Y260
 
-; Test 5: High-speed contours
+; Test 5: High-speed contours using full travel capability
 ; Aluminum allows very aggressive contouring
-G1 F4000 X50 Y30    ; High-speed positioning
-; Rapid contour following
-G1 X52 Y33
-G1 X56 Y36
-G1 X62 Y38
-G1 X68 Y39
-G1 X74 Y38
-G1 X78 Y36
-G1 X80 Y33
-G1 X81 Y30
-G1 X80 Y27
-G1 X78 Y24
-G1 X74 Y22
-G1 X68 Y21
-G1 X62 Y22
-G1 X56 Y24
-G1 X52 Y27
-G1 X50 Y30
+G1 F4000 X150 Y150  ; High-speed positioning to larger area
+; Rapid contour following across wider range
+G1 X170 Y180
+G1 X200 Y210
+G1 X240 Y230
+G1 X280 Y240
+G1 X320 Y230
+G1 X350 Y210
+G1 X370 Y180
+G1 X380 Y150
+G1 X370 Y120
+G1 X350 Y90
+G1 X320 Y70
+G1 X280 Y60
+G1 X240 Y70
+G1 X200 Y90
+G1 X170 Y120
+G1 X150 Y150
 
-; Test 6: Corner sharpness test
+; Test 6: Corner sharpness test using larger scale
 ; Aluminum can maintain sharp corners at higher speeds
-G1 F3000 X40 Y40    ; Position for corner test
-G1 X60 Y40          ; Sharp 90-degree corner
-G1 X60 Y60          ; Another sharp corner
-G1 X40 Y60          ; Sharp corner
-G1 X40 Y40          ; Complete square with sharp corners
+G1 F3000 X175 Y175  ; Position for corner test
+G1 X275 Y175        ; Sharp 90-degree corner (100mm)
+G1 X275 Y275        ; Another sharp corner (100mm)
+G1 X175 Y275        ; Sharp corner (100mm)
+G1 X175 Y175        ; Complete square with sharp corners (100mm)
 
 ; Performance evaluation:
 ; - Monitor for smooth high-speed motion without vibration

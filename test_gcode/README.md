@@ -2,6 +2,29 @@
 
 This directory contains comprehensive test files for validating and optimizing S-curve acceleration on CNC machines with NEMA23/NEMA24 stepper motors or servo systems.
 
+**Travel Envelope: Designed for 500x500x200mm machines with 25mm safety margins**
+
+## Custom Travel Limits
+
+If your machine has different travel limits, use the G-code generator:
+
+```bash
+# Generate test files for your specific machine
+python ../generate_test_gcode.py [x_max] [y_max] [z_max]
+
+# Examples:
+python ../generate_test_gcode.py 300 300 150    # Smaller machine  
+python ../generate_test_gcode.py 800 400 200    # Larger machine
+python ../generate_test_gcode.py 1000 1000 300  # Large format machine
+```
+
+**Generator Features:**
+- Automatically scales coordinates to your travel limits
+- Maintains safety margins and proportional test patterns  
+- Generates optimized test files for your specific envelope
+- Creates configuration documentation
+- Output files saved to `test_gcode_generated/` directory
+
 ## Test File Overview
 
 ### Basic Functionality Tests

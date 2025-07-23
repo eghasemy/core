@@ -1,6 +1,7 @@
 ; Test 1A: S-curve vs Linear Motion Comparison for CNC Machines
 ; Verifies S-curve system is functioning correctly on higher-end CNC machines
 ; For NEMA23/24 steppers or servo systems
+; Designed for 500x500x200mm travel envelope
 
 M208                ; Reset to defaults
 G28                 ; Home all axes
@@ -9,17 +10,17 @@ G90 G94             ; Absolute, feed rate mode
 ; Test 1: Minimal S-curve (approximates linear acceleration)
 M205 X50 Z25        ; Very low jerk settings
 M206 M0.8 C1.0      ; Minimal S-curve effect
-G1 F1000 X50 Y50    ; Move to start position
+G1 F1000 X150 Y150  ; Move to start position (center area)
 G4 P2               ; Pause for observation
 
-; Execute test pattern with minimal S-curve
-G1 F3000 X150 Y50   ; Fast move in X (100mm travel)
+; Execute test pattern with minimal S-curve - 300mm square
+G1 F3000 X450 Y150  ; Fast move in X (300mm travel)
 G4 P1
-G1 Y150             ; Fast move in Y (100mm travel)  
+G1 Y450             ; Fast move in Y (300mm travel)  
 G4 P1
-G1 X50              ; Return move (100mm travel)
+G1 X150             ; Return move (300mm travel)
 G4 P1
-G1 Y50              ; Complete square (100mm travel)
+G1 Y150             ; Complete square (300mm travel)
 G4 P2
 
 ; Test 2: Proper S-curve settings for CNC
@@ -28,13 +29,13 @@ M206 M1.2 C0.7      ; Full S-curve features enabled
 G4 P2               ; Pause for comparison
 
 ; Execute same pattern with full S-curve
-G1 F3000 X150 Y50   ; Same moves with S-curve enabled
+G1 F3000 X450 Y150  ; Same moves with S-curve enabled
+G4 P1
+G1 Y450
+G4 P1  
+G1 X150
 G4 P1
 G1 Y150
-G4 P1  
-G1 X50
-G4 P1
-G1 Y50
 G4 P2
 
 ; Test 3: Aggressive servo-capable settings (if applicable)
@@ -43,13 +44,13 @@ M206 M1.4 C0.8      ; Aggressive S-curve optimization
 G4 P2
 
 ; Execute pattern with servo-optimized S-curve
-G1 F4000 X150 Y50   ; Higher speed possible with servos
+G1 F4000 X450 Y150  ; Higher speed possible with servos
+G4 P1
+G1 Y450
+G4 P1  
+G1 X150
 G4 P1
 G1 Y150
-G4 P1  
-G1 X50
-G4 P1
-G1 Y50
 G4 P2
 
 ; Return to home and report
