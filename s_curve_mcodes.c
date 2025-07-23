@@ -26,8 +26,12 @@
 #include "gcode.h"
 #include "protocol.h"
 #include "report.h"
+#include "settings.h"
 #include <stdio.h>
 #include <math.h>
+
+// External access to defaults structure 
+extern const settings_t defaults;
 
 // From gcode.c - coordinate array indices for arc offsets
 #define I_VALUE X_AXIS
@@ -356,13 +360,40 @@ static void s_curve_mcode_execute(sys_state_t state, parser_block_t *gc_block)
                 hal.stream.write(msg);
                 sprintf(msg, "[MSG:Lookahead Blocks: %d]" ASCII_EOL, s_settings->path_blending_lookahead);
                 hal.stream.write(msg);
+                
+                // Final deceleration parameters
+                hal.stream.write("[MSG:Final Deceleration:]" ASCII_EOL);
+                sprintf(msg, "[MSG:Min Stop Velocity: %.1f mm/min]" ASCII_EOL, s_settings->min_stop_velocity);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Final Jerk Multiplier: %.1f]" ASCII_EOL, s_settings->final_decel_jerk_multiplier);
+                hal.stream.write(msg);
+                sprintf(msg, "[MSG:Stop Threshold: %.1f mm]" ASCII_EOL, s_settings->stop_threshold_distance);
+                hal.stream.write(msg);
             }
             break;
             
         case MCode_SCurveReset:
             // M208: Reset S-curve parameters to defaults
-            s_curve_init(); // Reinitialize with defaults
-            hal.stream.write("[MSG:S-curve parameters reset to defaults]" ASCII_EOL);
+            {
+                // Reset all S-curve settings to their default values
+                settings.s_curve.multiplier = defaults.s_curve.multiplier;
+                settings.s_curve.corner_factor = defaults.s_curve.corner_factor;
+                settings.s_curve.adaptive_enable = defaults.s_curve.adaptive_enable;
+                settings.s_curve.junction_velocity_factor = defaults.s_curve.junction_velocity_factor;
+                settings.s_curve.junction_jerk_multiplier = defaults.s_curve.junction_jerk_multiplier;
+                settings.s_curve.junction_angle_threshold = defaults.s_curve.junction_angle_threshold;
+                settings.s_curve.path_blending_enable = defaults.s_curve.path_blending_enable;
+                settings.s_curve.path_blending_tolerance = defaults.s_curve.path_blending_tolerance;
+                settings.s_curve.path_blending_radius = defaults.s_curve.path_blending_radius;
+                settings.s_curve.path_blending_min_velocity = defaults.s_curve.path_blending_min_velocity;
+                settings.s_curve.path_blending_jerk_factor = defaults.s_curve.path_blending_jerk_factor;
+                settings.s_curve.path_blending_lookahead = defaults.s_curve.path_blending_lookahead;
+                settings.s_curve.min_stop_velocity = defaults.s_curve.min_stop_velocity;
+                settings.s_curve.final_decel_jerk_multiplier = defaults.s_curve.final_decel_jerk_multiplier;
+                settings.s_curve.stop_threshold_distance = defaults.s_curve.stop_threshold_distance;
+                
+                hal.stream.write("[MSG:S-curve parameters reset to defaults]" ASCII_EOL);
+            }
             break;
             
         case MCode_SCurveProfile:
