@@ -493,29 +493,12 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_JerkMultiplier:
-            // Debug: Log all incoming values
-            {
-                char debug_msg[120];
-                sprintf(debug_msg, "[DEBUG:JerkMultiplier received value=%.6f, range check: %.6f>=0.1 && %.6f<=5.0]" ASCII_EOL, 
-                       value, value, value);
-                hal.stream.write(debug_msg);
-            }
-            if (value >= 0.1f && value <= 5.0f) {
+            // Use same validation range as settings system (0.5-2.0)
+            if (value >= 0.5f && value <= 2.0f) {
                 settings.s_curve.multiplier = value;
-                {
-                    char debug_msg[80];
-                    sprintf(debug_msg, "[DEBUG:JerkMultiplier set to %.6f]" ASCII_EOL, settings.s_curve.multiplier);
-                    hal.stream.write(debug_msg);
-                }
                 return true;
             }
-            // Debug: Log validation failure
-            {
-                char debug_msg[80];
-                sprintf(debug_msg, "[DEBUG:JerkMultiplier validation failed, value=%.6f]" ASCII_EOL, value);
-                hal.stream.write(debug_msg);
-            }
-            return false; // Explicitly return false if validation fails
+            return false;
             
         case SCurveParam_CornerFactor:
             if (value >= 0.1f && value <= 1.0f) {
@@ -536,18 +519,21 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_JunctionJerkMultiplier:
-            if (value >= 0.1f && value <= 2.0f) {
+            // Use same validation range as settings system (0.5-2.0)
+            if (value >= 0.5f && value <= 2.0f) {
                 settings.s_curve.junction_jerk_multiplier = value;
                 return true;
             }
+            return false;
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_SmoothJunctionAngle:
-            if (value >= 0.0f && value <= M_PI) {
-                settings.s_curve.junction_angle_threshold = value * (180.0f / M_PI); // Convert radians to degrees
+            // Settings system expects degrees (1.0-180.0), but M-code parameter might be in degrees
+            if (value >= 1.0f && value <= 180.0f) {
+                settings.s_curve.junction_angle_threshold = value; // Assume input is already in degrees
                 return true;
             }
-            return false; // Explicitly return false if validation fails
+            return false;
             
         case SCurveParam_EnablePathBlending:
             settings.s_curve.path_blending_enable = (value > 0.0f);
@@ -561,18 +547,20 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_MaxBlendRadius:
-            if (value >= 0.1f && value <= 10.0f) {
+            // Use same validation range as settings system (0.1-100.0)
+            if (value >= 0.1f && value <= 100.0f) {
                 settings.s_curve.path_blending_radius = value;
                 return true;
             }
-            return false; // Explicitly return false if validation fails
+            return false;
             
         case SCurveParam_MinBlendVelocity:
-            if (value >= 1.0f && value <= 100.0f) {
-                settings.s_curve.path_blending_min_velocity = value * 60.0f; // Convert mm/sec to mm/min
+            // Settings system expects mm/min (1.0-10000.0), assume M-code input is in mm/min
+            if (value >= 1.0f && value <= 10000.0f) {
+                settings.s_curve.path_blending_min_velocity = value; // No conversion needed
                 return true;
             }
-            return false; // Explicitly return false if validation fails
+            return false;
             
         case SCurveParam_BlendJerkFactor:
             if (value >= 0.1f && value <= 1.0f) {
