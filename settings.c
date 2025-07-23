@@ -42,6 +42,9 @@
 #if SPINDLE_SYNC_ENABLE
 extern void st_spindle_sync_cfg (settings_t *settings, settings_changed_flags_t changed);
 #endif
+#if ENABLE_S_CURVE_ACCELERATION
+#include "s_curve.h"
+#endif
 
 settings_t settings;
 
@@ -353,7 +356,23 @@ PROGMEM const settings_t defaults = {
     .safety_door.coolant_on_delay = DEFAULT_SAFETY_DOOR_COOLANT_DELAY,
 
     .rgb_strip.length0 = DEFAULT_RGB_STRIP0_LENGTH,
-    .rgb_strip.length1 = DEFAULT_RGB_STRIP1_LENGTH
+    .rgb_strip.length1 = DEFAULT_RGB_STRIP1_LENGTH,
+
+    .s_curve.multiplier = DEFAULT_S_CURVE_MULTIPLIER,
+    .s_curve.corner_factor = DEFAULT_S_CURVE_CORNER_FACTOR,
+    .s_curve.adaptive_enable = DEFAULT_S_CURVE_ADAPTIVE_ENABLE,
+    .s_curve.junction_velocity_factor = DEFAULT_S_CURVE_JUNCTION_VELOCITY_FACTOR,
+    .s_curve.junction_jerk_multiplier = DEFAULT_S_CURVE_JUNCTION_JERK_MULTIPLIER,
+    .s_curve.junction_angle_threshold = DEFAULT_S_CURVE_JUNCTION_ANGLE_THRESHOLD,
+    .s_curve.path_blending_enable = DEFAULT_S_CURVE_PATH_BLENDING_ENABLE,
+    .s_curve.path_blending_tolerance = DEFAULT_S_CURVE_PATH_BLENDING_TOLERANCE,
+    .s_curve.path_blending_radius = DEFAULT_S_CURVE_PATH_BLENDING_RADIUS,
+    .s_curve.path_blending_min_velocity = DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY,
+    .s_curve.path_blending_jerk_factor = DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR,
+    .s_curve.path_blending_lookahead = DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD,
+    .s_curve.min_stop_velocity = DEFAULT_S_CURVE_MIN_STOP_VELOCITY,
+    .s_curve.final_decel_jerk_multiplier = DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER,
+    .s_curve.stop_threshold_distance = DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE
 };
 
 static bool group_is_available (const setting_group_detail_t *group)
@@ -1094,6 +1113,27 @@ static inline void set_axis_unit (const setting_detail_t *setting, const char *u
         strcpy((char *)setting->unit, unit);
 }
 
+static status_code_t set_s_curve_adaptive_enable (setting_id_t id, uint_fast16_t int_value)
+{
+    settings.s_curve.adaptive_enable = int_value != 0;
+    return Status_OK;
+}
+
+static status_code_t set_s_curve_path_blending_enable (setting_id_t id, uint_fast16_t int_value)
+{
+    settings.s_curve.path_blending_enable = int_value != 0;
+    return Status_OK;
+}
+
+static status_code_t set_s_curve_path_blending_lookahead (setting_id_t id, uint_fast16_t int_value)
+{
+    if(int_value >= 3 && int_value <= 16) {
+        settings.s_curve.path_blending_lookahead = (uint8_t)int_value;
+        return Status_OK;
+    }
+    return Status_GcodeValueOutOfRange;
+}
+
 #if N_AXIS > 3
 
 static status_code_t set_rotary_axes (setting_id_t id, uint_fast16_t int_value)
@@ -1243,6 +1283,90 @@ static status_code_t set_float (setting_id_t setting, float value)
 
         case Setting_CoolantOnDelay:
             settings.coolant.on_delay = (uint16_t)(value * 1000.0f);
+            break;
+
+        case Setting_SCurveMultiplier:
+            if(value >= 0.5f && value <= 2.0f)
+                settings.s_curve.multiplier = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveCornerFactor:
+            if(value >= 0.1f && value <= 1.0f)
+                settings.s_curve.corner_factor = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveJunctionVelocityFactor:
+            if(value >= 0.5f && value <= 2.0f)
+                settings.s_curve.junction_velocity_factor = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveJunctionJerkMultiplier:
+            if(value >= 0.5f && value <= 2.0f)
+                settings.s_curve.junction_jerk_multiplier = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveJunctionAngleThreshold:
+            if(value >= 1.0f && value <= 180.0f)
+                settings.s_curve.junction_angle_threshold = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurvePathBlendingTolerance:
+            if(value >= 0.001f && value <= 1.0f)
+                settings.s_curve.path_blending_tolerance = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurvePathBlendingRadius:
+            if(value >= 0.1f && value <= 100.0f)
+                settings.s_curve.path_blending_radius = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurvePathBlendingMinVelocity:
+            if(value >= 1.0f && value <= 10000.0f)
+                settings.s_curve.path_blending_min_velocity = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurvePathBlendingJerkFactor:
+            if(value >= 0.1f && value <= 1.0f)
+                settings.s_curve.path_blending_jerk_factor = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveMinStopVelocity:
+            if(value >= 0.1f && value <= 1000.0f)
+                settings.s_curve.min_stop_velocity = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveFinalDecelJerkMultiplier:
+            if(value >= 0.1f && value <= 5.0f)
+                settings.s_curve.final_decel_jerk_multiplier = value;
+            else
+                status = Status_GcodeValueOutOfRange;
+            break;
+
+        case Setting_SCurveStopThresholdDistance:
+            if(value >= 0.0f && value <= 50.0f)
+                settings.s_curve.stop_threshold_distance = value;
+            else
+                status = Status_GcodeValueOutOfRange;
             break;
 
         default:
@@ -1429,6 +1553,54 @@ static float get_float (setting_id_t setting)
 
         case Setting_CoolantOnDelay:
             value = (float)settings.coolant.on_delay / 1000.0f;
+            break;
+
+        case Setting_SCurveMultiplier:
+            value = settings.s_curve.multiplier;
+            break;
+
+        case Setting_SCurveCornerFactor:
+            value = settings.s_curve.corner_factor;
+            break;
+
+        case Setting_SCurveJunctionVelocityFactor:
+            value = settings.s_curve.junction_velocity_factor;
+            break;
+
+        case Setting_SCurveJunctionJerkMultiplier:
+            value = settings.s_curve.junction_jerk_multiplier;
+            break;
+
+        case Setting_SCurveJunctionAngleThreshold:
+            value = settings.s_curve.junction_angle_threshold;
+            break;
+
+        case Setting_SCurvePathBlendingTolerance:
+            value = settings.s_curve.path_blending_tolerance;
+            break;
+
+        case Setting_SCurvePathBlendingRadius:
+            value = settings.s_curve.path_blending_radius;
+            break;
+
+        case Setting_SCurvePathBlendingMinVelocity:
+            value = settings.s_curve.path_blending_min_velocity;
+            break;
+
+        case Setting_SCurvePathBlendingJerkFactor:
+            value = settings.s_curve.path_blending_jerk_factor;
+            break;
+
+        case Setting_SCurveMinStopVelocity:
+            value = settings.s_curve.min_stop_velocity;
+            break;
+
+        case Setting_SCurveFinalDecelJerkMultiplier:
+            value = settings.s_curve.final_decel_jerk_multiplier;
+            break;
+
+        case Setting_SCurveStopThresholdDistance:
+            value = settings.s_curve.stop_threshold_distance;
             break;
 
         default:
@@ -1628,6 +1800,18 @@ static uint32_t get_int (setting_id_t id)
 #endif
         case Setting_ResetActions:
             value = (!settings.homing.flags.keep_on_reset) | ((!settings.flags.keep_offsets_on_reset) << 1);
+            break;
+
+        case Setting_SCurveAdaptiveEnable:
+            value = settings.s_curve.adaptive_enable;
+            break;
+
+        case Setting_SCurvePathBlendingEnable:
+            value = settings.s_curve.path_blending_enable;
+            break;
+
+        case Setting_SCurvePathBlendingLookahead:
+            value = settings.s_curve.path_blending_lookahead;
             break;
 
         default:
@@ -2187,6 +2371,21 @@ PROGMEM static const setting_detail_t setting_detail[] = {
      { Setting_FSOptions, Group_General, "File systems options", NULL, Format_Bitfield, fs_options, NULL, NULL, Setting_IsExtended, &settings.fs_options.mask, NULL, is_setting_available },
      { Setting_HomePinsInvertMask, Group_Limits, "Invert home inputs", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.home_invert.mask, NULL, is_setting_available },
      { Setting_CoolantOnDelay, Group_Coolant, "Coolant on delay", "s", Format_Decimal, "#0.0", "0.5", "20", Setting_IsExtendedFn, set_float, get_float, is_setting_available, { .allow_null = On } },
+     { Setting_SCurveMultiplier, Group_SCurve, "S-curve jerk multiplier", NULL, Format_Decimal, "#0.0", "0.5", "2.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveCornerFactor, Group_SCurve, "S-curve corner factor", NULL, Format_Decimal, "#0.0", "0.1", "1.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveAdaptiveEnable, Group_SCurve, "S-curve adaptive jerk", NULL, Format_Bool, NULL, NULL, NULL, Setting_IsExtendedFn, set_s_curve_adaptive_enable, get_int, NULL },
+     { Setting_SCurveJunctionVelocityFactor, Group_SCurve, "Junction velocity factor", NULL, Format_Decimal, "#0.0", "0.5", "2.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveJunctionJerkMultiplier, Group_SCurve, "Junction jerk multiplier", NULL, Format_Decimal, "#0.0", "0.5", "2.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveJunctionAngleThreshold, Group_SCurve, "Junction angle threshold", "degrees", Format_Decimal, "##0.0", "1.0", "180.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurvePathBlendingEnable, Group_SCurve, "Path blending enable", NULL, Format_Bool, NULL, NULL, NULL, Setting_IsExtendedFn, set_s_curve_path_blending_enable, get_int, NULL },
+     { Setting_SCurvePathBlendingTolerance, Group_SCurve, "Path blending tolerance", "mm", Format_Decimal, "#0.000", "0.001", "1.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurvePathBlendingRadius, Group_SCurve, "Path blending max radius", "mm", Format_Decimal, "##0.0", "0.1", "100.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurvePathBlendingMinVelocity, Group_SCurve, "Path blending min velocity", "mm/min", Format_Decimal, "####0.0", "1.0", "10000.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurvePathBlendingJerkFactor, Group_SCurve, "Path blending jerk factor", NULL, Format_Decimal, "#0.0", "0.1", "1.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurvePathBlendingLookahead, Group_SCurve, "Path blending lookahead blocks", NULL, Format_Int8, "##0", "3", "16", Setting_IsExtendedFn, set_s_curve_path_blending_lookahead, get_int, NULL },
+     { Setting_SCurveMinStopVelocity, Group_SCurve, "Min velocity for S-curve stop", "mm/min", Format_Decimal, "##0.0", "0.1", "1000.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveFinalDecelJerkMultiplier, Group_SCurve, "Final deceleration jerk multiplier", NULL, Format_Decimal, "#0.0", "0.1", "5.0", Setting_IsExtendedFn, set_float, get_float, NULL },
+     { Setting_SCurveStopThresholdDistance, Group_SCurve, "Stop threshold distance", "mm", Format_Decimal, "##0.0", "0.0", "50.0", Setting_IsExtendedFn, set_float, get_float, NULL },
      { Setting_MotorWarningsEnable, Group_Stepper, "Motor warning inputs enable", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_warning_enable, NULL, is_setting_available },
      { Setting_MotorWarningsInvert, Group_Stepper, "Invert motor warning inputs", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_warning_invert, NULL, is_setting_available },
      { Setting_MotorFaultsEnable, Group_Stepper, "Motor fault inputs enable", NULL, Format_AxisMask, NULL, NULL, NULL, Setting_IsExtended, &settings.motor_fault_enable, NULL, is_setting_available },
