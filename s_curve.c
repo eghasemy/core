@@ -493,8 +493,8 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_JerkMultiplier:
-            // Use same validation range as settings system (0.5-2.0)
-            if (value >= 0.5f && value <= 2.0f) {
+            // Temporarily expand validation range to debug (was 0.5-2.0)
+            if (value >= 0.1f && value <= 5.0f) {
                 settings.s_curve.multiplier = value;
                 return true;
             }
