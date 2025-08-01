@@ -398,12 +398,11 @@ bool s_curve_update_settings(uint8_t axis, float jerk)
 // Set global jerk multiplier
 bool s_curve_set_jerk_multiplier(float multiplier)
 {
-    if (multiplier < 0.1f || multiplier > 5.0f) {
-        return false;
+    if (multiplier >= 0.1f && multiplier <= 5.0f) {
+        settings.s_curve.multiplier = multiplier;
+        return true;
     }
-    
-    settings.s_curve.multiplier = multiplier;
-    return true;
+    return false;
 }
 
 // Set corner jerk reduction factor
@@ -519,13 +518,12 @@ bool s_curve_set_parameter_realtime(s_curve_param_t param, float value)
             return false; // Explicitly return false if validation fails
             
         case SCurveParam_JunctionJerkMultiplier:
-            // Use same validation range as settings system (0.5-2.0)
-            if (value >= 0.5f && value <= 2.0f) {
+            // Expanded validation range for flexible tuning (0.1-5.0)
+            if (value >= 0.1f && value <= 5.0f) {
                 settings.s_curve.junction_jerk_multiplier = value;
                 return true;
             }
             return false;
-            return false; // Explicitly return false if validation fails
             
         case SCurveParam_SmoothJunctionAngle:
             // Settings system expects degrees (1.0-180.0), but M-code parameter might be in degrees

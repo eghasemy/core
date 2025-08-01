@@ -91,7 +91,7 @@ M205 J0.01           ; J=Junction deviation (affects cornering precision)
 
 #### M206 - Advanced S-Curve Parameters
 ```gcode
-M206 P1.3            ; P=Global jerk multiplier (0.5-2.0, higher for servos)
+M206 P1.3            ; P=Global jerk multiplier (0.1-5.0, higher for servos)
 M206 Q0.7            ; Q=Corner jerk factor (0.1-1.0, lower = smoother corners)
 M206 S1              ; S=Enable adaptive jerk (0=off, 1=on)
 ```
