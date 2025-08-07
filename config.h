@@ -191,14 +191,182 @@ or EMI triggering the related interrupt falsely or too many times.
 
 // EXPERIMENTAL OPTIONS
 
-#define ENABLE_PATH_BLENDING Off // Do NOT enable unless working on adding this feature!
+#define ENABLE_PATH_BLENDING On // Enable S-curve aware path blending for smoother motion
+// Enable true 7-phase S-curve acceleration
+#define ENABLE_S_CURVE_ACCELERATION On
+#define S_CURVE_ENABLE_MCODES On
+#define S_CURVE_ADAPTIVE_JERK On
+
 
 #if !defined ENABLE_ACCELERATION_PROFILES || defined __DOXYGEN__
 #define ENABLE_ACCELERATION_PROFILES Off // Enable to allow G-Code changeable acceleration profiles.
 #endif
 
 #if !defined ENABLE_JERK_ACCELERATION || defined __DOXYGEN__
-#define ENABLE_JERK_ACCELERATION Off // Enable to use 3rd order acceleration calculations. May need more processing power, a FPU will help.
+#define ENABLE_JERK_ACCELERATION On // Enable to use 3rd order acceleration calculations (S-Curve). Optimized for STM32F446 with FPU.
+#endif
+
+/*! \def ENABLE_S_CURVE_ACCELERATION
+\brief True 7-phase S-curve acceleration with runtime adjustable parameters.
+When enabled, provides the most advanced motion profiles available with:
+- True 7-phase motion profiles (jerk-up, accel, jerk-down, cruise, decel-jerk-up, decel, decel-jerk-down)
+- Runtime adjustable jerk parameters via M-codes (M204, M205, M206, M207, M208, M209)
+- Adaptive jerk control based on motion complexity
+- Advanced cornering algorithms with junction velocity optimization
+- Real-time parameter adjustment during motion
+- Performance monitoring and auto-tuning capabilities
+*/
+#if !defined ENABLE_S_CURVE_ACCELERATION || defined __DOXYGEN__
+#define ENABLE_S_CURVE_ACCELERATION On // Enable true 7-phase S-curve acceleration with advanced features.
+#endif
+
+/*! \def S_CURVE_JERK_MULTIPLIER
+\brief S-curve jerk multiplier for fine-tuning acceleration profiles.
+Higher values provide more aggressive acceleration, lower values provide smoother motion.
+Recommended range: 0.8 - 1.5 for most applications.
+Can be adjusted at runtime via M206 M<multiplier> command.
+*/
+#if !defined S_CURVE_JERK_MULTIPLIER || defined __DOXYGEN__
+#define S_CURVE_JERK_MULTIPLIER 1.0f // Default jerk multiplier for S-curve acceleration tuning.
+#endif
+
+/*! \def S_CURVE_ENABLE_MCODES
+\brief Enable M-code handlers for real-time S-curve parameter adjustment.
+Enables M204, M205, M206, M207, M208, M209 commands for controlling:
+- M204: Acceleration settings (P=XY, R=retract, T=Z)
+- M205: Jerk settings (X=XY, Z=Z, E=extruder, J=junction)
+- M206: Advanced S-curve parameters (P=multiplier, Q=corner_factor, S=adaptive)
+- M207: Report current S-curve parameters
+- M208: Reset S-curve parameters to defaults  
+- M209: Set S-curve profiles (S=type, V=value)
+*/
+#if !defined S_CURVE_ENABLE_MCODES || defined __DOXYGEN__
+#define S_CURVE_ENABLE_MCODES On // Enable M-code handlers for S-curve control.
+#endif
+
+/*! \def S_CURVE_ADAPTIVE_JERK
+\brief Enable adaptive jerk control based on motion characteristics.
+When enabled, jerk values are automatically adjusted based on:
+- Move distance (short moves use lower jerk for precision)
+- Junction angles (sharp corners use reduced jerk)
+- Motion complexity (simple moves can use higher jerk)
+*/
+#if !defined S_CURVE_ADAPTIVE_JERK || defined __DOXYGEN__
+#define S_CURVE_ADAPTIVE_JERK On // Enable adaptive jerk control.
+#endif
+
+/*! \def S_CURVE_CORNER_JERK_FACTOR
+\brief Default corner jerk reduction factor (0.1 - 1.0).
+Controls how much jerk is reduced in sharp corners.
+0.7 = 30% jerk reduction in corners, 1.0 = no reduction.
+*/
+#if !defined S_CURVE_CORNER_JERK_FACTOR || defined __DOXYGEN__
+#define S_CURVE_CORNER_JERK_FACTOR 0.7f // Default corner jerk reduction factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_MULTIPLIER
+\brief Default S-curve jerk multiplier.
+*/
+#if !defined DEFAULT_S_CURVE_MULTIPLIER || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_MULTIPLIER 1.0f // Default jerk multiplier for S-curve acceleration tuning.
+#endif
+
+/*! \def DEFAULT_S_CURVE_CORNER_FACTOR
+\brief Default S-curve corner factor.
+*/
+#if !defined DEFAULT_S_CURVE_CORNER_FACTOR || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_CORNER_FACTOR 0.7f // Default corner jerk reduction factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_ADAPTIVE_ENABLE
+\brief Default S-curve adaptive jerk enable.
+*/
+#if !defined DEFAULT_S_CURVE_ADAPTIVE_ENABLE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_ADAPTIVE_ENABLE On // Enable adaptive jerk control by default.
+#endif
+
+/*! \def DEFAULT_S_CURVE_JUNCTION_VELOCITY_FACTOR
+\brief Default junction velocity factor.
+*/
+#if !defined DEFAULT_S_CURVE_JUNCTION_VELOCITY_FACTOR || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_JUNCTION_VELOCITY_FACTOR 1.2f // Default junction velocity factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_JUNCTION_JERK_MULTIPLIER
+\brief Default junction jerk multiplier.
+*/
+#if !defined DEFAULT_S_CURVE_JUNCTION_JERK_MULTIPLIER || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_JUNCTION_JERK_MULTIPLIER 0.8f // Default junction jerk multiplier.
+#endif
+
+/*! \def DEFAULT_S_CURVE_JUNCTION_ANGLE_THRESHOLD
+\brief Default junction angle threshold in degrees.
+*/
+#if !defined DEFAULT_S_CURVE_JUNCTION_ANGLE_THRESHOLD || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_JUNCTION_ANGLE_THRESHOLD 150.0f // Default junction angle threshold (degrees).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_ENABLE
+\brief Default path blending enable.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_ENABLE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_ENABLE On // Enable path blending by default.
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_TOLERANCE
+\brief Default path blending tolerance in mm.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_TOLERANCE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_TOLERANCE 0.02f // Default path blending tolerance (mm).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_RADIUS
+\brief Default path blending max radius in mm.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_RADIUS || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_RADIUS 2.0f // Default path blending max radius (mm).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY
+\brief Default path blending minimum velocity in mm/min.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_MIN_VELOCITY 10.0f // Default path blending min velocity (mm/min).
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR
+\brief Default path blending jerk factor.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_JERK_FACTOR 0.6f // Default path blending jerk factor.
+#endif
+
+/*! \def DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD
+\brief Default path blending lookahead blocks.
+*/
+#if !defined DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_PATH_BLENDING_LOOKAHEAD 8 // Default path blending lookahead blocks.
+#endif
+
+/*! \def DEFAULT_S_CURVE_MIN_STOP_VELOCITY
+Default minimum velocity for S-curve deceleration (mm/min). Below this velocity, linear deceleration is used for faster stopping.
+*/
+#if !defined DEFAULT_S_CURVE_MIN_STOP_VELOCITY || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_MIN_STOP_VELOCITY 30.0f // Default minimum velocity for S-curve deceleration (mm/min).
+#endif
+
+/*! \def DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER
+Default jerk multiplier for final deceleration phase. Higher values provide faster stopping.
+*/
+#if !defined DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_FINAL_DECEL_JERK_MULTIPLIER 2.0f // Default final deceleration jerk multiplier.
+#endif
+
+/*! \def DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE
+Default distance from target to switch to rapid stopping (mm). Set to 0.0 to disable.
+*/
+#if !defined DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE || defined __DOXYGEN__
+#define DEFAULT_S_CURVE_STOP_THRESHOLD_DISTANCE 1.0f // Default stop threshold distance (mm).
 #endif
 
 // -
@@ -2126,31 +2294,38 @@ G90
 ///@}
 
 /*! @name 22x - Setting_AxisJerk
+S-curve acceleration jerk values optimized for true 7-phase implementation.
+These are default values that can be adjusted at runtime via M205 commands or settings.
+Higher values provide more aggressive acceleration while maintaining smooth motion.
+Recommended ranges:
+- XY axes: 100-300 mm/sec³ (depending on machine rigidity)
+- Z axis: 50-150 mm/sec³ (lower for precision, higher for speed)
+- Rotary axes: 80-200 mm/sec³ (balanced for rotational motion)
 */
 ///@{
 #if !defined DEFAULT_X_JERK|| defined __DOXYGEN__
-#define DEFAULT_X_JERK 100.0f // mm/sec^3
+#define DEFAULT_X_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X
 #endif
 #if !defined DEFAULT_Y_JERK|| defined __DOXYGEN__
-#define DEFAULT_Y_JERK 100.0f // mm/sec^3
+#define DEFAULT_Y_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X (uses XY value)
 #endif
 #if !defined DEFAULT_Z_JERK || defined __DOXYGEN__
-#define DEFAULT_Z_JERK 100.0f // mm/sec^3
+#define DEFAULT_Z_JERK 80.0f // mm/sec^3 - Runtime adjustable via M205 Z
 #endif
 #if (defined A_AXIS && !defined DEFAULT_A_JERK) || defined __DOXYGEN__
-#define DEFAULT_A_JERK 100.0f // mm/sec^3
+#define DEFAULT_A_JERK 120.0f // mm/sec^3 - Runtime adjustable via M205 E
 #endif
 #if (defined B_AXIS && !defined DEFAULT_B_JERK) || defined __DOXYGEN__
-#define DEFAULT_B_JERK 100.0f // mm/sec^3
+#define DEFAULT_B_JERK 120.0f // mm/sec^3 - Runtime adjustable via M205 E
 #endif
 #if (defined C_AXIS && !defined DEFAULT_C_JERK) || defined __DOXYGEN__
-#define DEFAULT_C_JERK 100.0f // mm/sec^3
+#define DEFAULT_C_JERK 120.0f // mm/sec^3 - Runtime adjustable via M205 E
 #endif
 #if (defined U_AXIS && !defined DEFAULT_U_JERK) || defined __DOXYGEN__
-#define DEFAULT_U_JERK 100.0f // mm/sec^3
+#define DEFAULT_U_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X
 #endif
 #if (defined V_AXIS && !defined DEFAULT_V_JERK) || defined __DOXYGEN__
-#define DEFAULT_V_JERK 100.0f // mm/sec^3
+#define DEFAULT_V_JERK 150.0f // mm/sec^3 - Runtime adjustable via M205 X
 #endif
 ///@}
 

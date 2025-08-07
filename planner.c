@@ -31,6 +31,15 @@
 #include "planner.h"
 #include "protocol.h"
 
+#if ENABLE_S_CURVE_ACCELERATION
+#include "s_curve.h"
+
+// Function declaration for M-code initialization
+#if S_CURVE_ENABLE_MCODES
+void s_curve_mcodes_init(void);
+#endif
+#endif
+
 #ifndef ROTARY_FIX
 #define ROTARY_FIX 0
 #endif
@@ -185,6 +194,28 @@ static void planner_recalculate (void)
 
         block = block->next;
     }
+
+#if ENABLE_S_CURVE_ACCELERATION && ENABLE_PATH_BLENDING
+    // Apply S-curve path blending and lookahead optimization
+    s_curve_settings_t *s_settings = s_curve_get_settings();
+    if (s_settings && s_settings->path_blending_enable) {
+        s_curve_lookahead_t lookahead = {0};
+        
+        // Collect blocks for lookahead analysis
+        uint8_t count = 0;
+        plan_block_t *lookahead_block = block_buffer_planned;
+        while (lookahead_block != block_buffer_head && count < s_settings->path_blending_lookahead) {
+            lookahead.blocks[count++] = lookahead_block;
+            lookahead_block = lookahead_block->next;
+        }
+        lookahead.block_count = count;
+        
+        // Optimize the lookahead sequence if we have enough blocks
+        if (count >= 3) {
+            s_curve_optimize_lookahead_sequence(&lookahead);
+        }
+    }
+#endif
 }
 
 inline static void plan_cleanup (plan_block_t *block)
@@ -257,6 +288,14 @@ bool plan_reset (void)
     }
 
     plan_reset_buffer();
+
+#if ENABLE_S_CURVE_ACCELERATION
+    // Initialize S-curve acceleration system
+    s_curve_init();
+#if S_CURVE_ENABLE_MCODES
+    s_curve_mcodes_init();
+#endif
+#endif
 
     return true;
 }
@@ -554,13 +593,35 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     //     -high speed regime: complete jerk ramp + time at max_axcel to reach desired programmed_rates
     // Profiles are calculated as symmetrical (calculate to 1/2 programmed rate, then double)
     float time_to_max_accel = block->max_acceleration / block->jerk;    // unit: min - time it takes to reach max acceleration 
+#if ENABLE_S_CURVE_ACCELERATION
+    // Optimized S-curve calculation for STM32F446 FPU
+    // Pre-calculate half jerk for efficiency: Vt = V0 + A0T + 1/2*jerk*T^2
+    float half_jerk = 0.5f * block->jerk;
+    
+    // Apply final deceleration optimization for jog motions
+    if (block->condition.jog_motion) {
+        s_curve_settings_t *s_settings = s_curve_get_settings();
+        if (s_settings && s_settings->final_decel_jerk_multiplier > 1.0f) {
+            // Apply enhanced jerk for jog motions to reduce crawling
+            float enhanced_jerk = block->jerk * s_settings->final_decel_jerk_multiplier;
+            half_jerk = 0.5f * enhanced_jerk;
+            // Update the time calculation with enhanced jerk
+            time_to_max_accel = block->max_acceleration / enhanced_jerk;
+        }
+    }
+    
+    float speed_after_jerkramp = half_jerk * time_to_max_accel * time_to_max_accel;   // unit: mm / min - velocity after one completed jerk ramp up
+    float half_programmed_rate = 0.5f * block->programmed_rate;
+#else
     float speed_after_jerkramp = 0.5f * block->jerk * time_to_max_accel * time_to_max_accel;   // unit: mm / min - velocity after one completed jerk ramp up - Vt = V0 + A0T + 1/2 jerk*T
-    if(0.5f * block->programmed_rate > speed_after_jerkramp)
+    float half_programmed_rate = 0.5f * block->programmed_rate;
+#endif
+    if(half_programmed_rate > speed_after_jerkramp)
         // Profile time = 2x (1 complete jerk ramp + additional time at max_accel to reach desired speed)
-        block->acceleration = block->programmed_rate / (2.0f *(time_to_max_accel + (0.5f * block->programmed_rate - speed_after_jerkramp) / block->max_acceleration));     
+        block->acceleration = block->programmed_rate / (2.0f *(time_to_max_accel + (half_programmed_rate - speed_after_jerkramp) / block->max_acceleration));     
     else 
         // Max Accel is not reached. time_to_halfvelocity = sqrt( 0.5 programmed_rate * 2 / jerk) -> derived from Vt = V0 + A0T + 1/2 jerk*T (v0 and a0t == 0 in this case)
-        block->acceleration = block->programmed_rate / (2.0f * sqrt(block->programmed_rate / block->jerk));  
+        block->acceleration = block->programmed_rate / (2.0f * sqrtf(block->programmed_rate / block->jerk));  
 #endif
 
     // TODO: Need to check this method handling zero junction speeds when starting from rest.
@@ -618,6 +679,34 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
             float sin_theta_d2 = sqrtf(0.5f * (1.0f - junction_cos_theta)); // Trig half angle identity. Always positive.
             block->max_junction_speed_sqr = max(MINIMUM_JUNCTION_SPEED * MINIMUM_JUNCTION_SPEED,
                                                   (junction_acceleration * settings.junction_deviation * sin_theta_d2) / (1.0f - sin_theta_d2));
+
+#if ENABLE_S_CURVE_ACCELERATION
+            // Apply S-curve junction velocity optimization
+            s_curve_settings_t *s_settings = s_curve_get_settings();
+            if (s_settings && s_settings->adaptive_enable) {
+                float junction_angle = acosf(-junction_cos_theta); // Convert cos to angle
+                float current_velocity = sqrtf(block->max_junction_speed_sqr);
+                float next_velocity = current_velocity; // Would need next block info for proper calculation
+                
+                s_curve_junction_t s_junction = {0};
+                s_junction.junction_angle = junction_angle;
+                
+                // Use the junction structure for additional processing if needed
+                (void)s_junction; // Suppress unused variable warning
+                
+                // Apply S-curve optimized junction velocity
+                // Use X-axis jerk as reference for XY plane calculations
+                float reference_jerk = settings.axis[X_AXIS].jerk * s_settings->multiplier;
+                float optimized_velocity = s_curve_calculate_junction_velocity_limit(
+                    junction_angle, current_velocity, next_velocity, reference_jerk);
+                    
+                // Apply the optimization while respecting the original geometric limit
+                float optimized_speed_sqr = optimized_velocity * optimized_velocity;
+                if (optimized_speed_sqr < block->max_junction_speed_sqr && optimized_speed_sqr > MINIMUM_JUNCTION_SPEED * MINIMUM_JUNCTION_SPEED) {
+                    block->max_junction_speed_sqr = optimized_speed_sqr;
+                }
+            }
+#endif
         }
     }
 
